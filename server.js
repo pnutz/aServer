@@ -1,6 +1,7 @@
 var http = require("http"),
 url = require("url"),
 qs = require("querystring"),
+auth = require("./routes/auth"); //Authentication module
 request_count = 0;
 
 exports.start = function start() {
@@ -37,7 +38,7 @@ exports.start = function start() {
 					
 					// send http request to WebApp
 					if (post.userID != null && post.email != null && post.token != null) {
-						authorizeRequest(post.token, post.userID, post.email, function (result) {
+						auth.authorizeRequest(post.token, post.userID, post.email, function (result) {
 							if (result === true)
 							{
 								// request response
@@ -89,47 +90,4 @@ function timeout_wrapper(request) {
 		// calls response.on(error)
 		request.abort();
 	};
-}
-
-// authorize chrome extension request with webapp
-function authorizeRequest(token, userID, email, callback) {
-	var options = {
-		host: "localhost",
-		// replace path with authentication method
-		path: "/currencies.json?email=" + email + "&token=" + token,
-		port: "3000"
-	};
-
-	var request = http.get(options, function(response) {
-		var str = "";
-		response.on("data", function (chunk) {
-			str += chunk;
-			clearTimeout(timeout);
-			timeout = setTimeout(to_wrap, 10000);
-		});
-		
-		response.on("end", function () {
-			console.log("Finished sending http request to WebApp:");
-			console.log(str);
-			clearTimeout(timeout);
-			// if response was false, return callback(false)
-			callback(true);
-		});
-		
-		response.on("error", function (error) {
-			console.log("Got error: " + error.message);
-			clearTimeout(timeout);
-			callback(false);
-		});
-	});
-	
-	var to_wrap = timeout_wrapper(request);
-	var timeout = setTimeout(to_wrap, 10000);
-	
-	request.end();
-}
-
-// post data to chrome extension
-function postData() {
-	
 }

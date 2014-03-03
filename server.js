@@ -54,9 +54,8 @@ exports.start = function start() {
 						});
 					}
 					console.log("Request End");
+					// result is currently undefined, so this response will be sent to ChromeExtension
 					response.writeHead(200, {"Content-Type": "text/plain"});
-					response.write("here");
-					response.write("this");
 					response.end("Response End");
 				}
 			});
@@ -82,12 +81,3 @@ function incrementRequestCount() {
 }
 
 function decrementRequestCount() { request_count--; }
-
-function timeout_wrapper(request) {
-	return function() {
-		// logging, cleaning, depending on request
-		console.log("Request Timeout");
-		// calls response.on(error)
-		request.abort();
-	};
-}

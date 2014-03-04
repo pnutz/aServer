@@ -4,9 +4,9 @@ TIMEOUT_CONST = 10000;
 exports.authorizeRequest = function (token, userID, email, callback) {
 	var options = {
 		host: "localhost",
+		port: "3000",
 		// replace path with authentication method
-		path: "/currencies.json?email=" + email + "&token=" + token,
-		port: "3000"
+		path: "/currencies.json?email=" + email + "&token=" + token
 	};
 
 	var request = http.get(options, function(response) {

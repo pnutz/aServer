@@ -1,7 +1,11 @@
 var http = require("http"),
+sys = require("sys"),
 url = require("url"),
 qs = require("querystring"),
-auth = require("./routes/auth"); //Authentication module
+// Authentication module
+auth = require("./routes/auth"),
+// TODO: Change origin to contain chrome extension full url (once ID is set)
+originString = "chrome-extension://",
 request_count = 0;
 
 exports.start = function start() {
@@ -11,35 +15,34 @@ exports.start = function start() {
 
 		incrementRequestCount();
 		
-		// looking for POST requests from chrome extension (set url to include extensionID once that is defined)
-		if (request.method == "POST" && request.headers.origin.indexOf("chrome-extension://") !== -1) {		
+		// POST request
+		if (request.method == "POST" && request.headers.origin.indexOf(originString) !== -1) {		
 			var requestBody = "";
 			// load request data
 			request.on("data", function(data) {
-				console.log("data");
 				requestBody += data;
 				// string too long, destroy connection! can flood RAM
 				if (requestBody.length > 1e6) {
 					requestBody = "";
-					response.writeHead(413, {"Content-Type": "text/plain"}).end();
+					response.writeHead(413);
+					response.end();
 					request.connection.destroy();
 				}
 			});
 			
 			// client finished sending request
 			request.on("end", function() {
+				decrementRequestCount();
+			
 				// ignore favicon requests
 				if (pathname !== "/favicon.ico") {
-					console.log("querystring parse");
 					var post = qs.parse(requestBody);
 					console.log(post);
-					
-					decrementRequestCount();
 					
 					// send http request to WebApp
 					if (post.userID != null && post.email != null && post.token != null) {
 						auth.authorizeRequest(post.token, post.userID, post.email, function (result) {
-							if (result === true)
+							/*if (result === true)
 							{
 								// request response
 								response.writeHead(200, {"Content-Type": "text/plain"});
@@ -50,21 +53,20 @@ exports.start = function start() {
 								// request response
 								response.writeHead(200, {"Content-Type": "text/plain"});
 								response.end("Authorization Token Denied");
-							}
+							}*/
+							response.writeHead(200, {"Content-Type": "text/plain"});
+							response.end("Authorization Token Accepted");
 						});
 					}
 					console.log("Request End");
-					// result is currently undefined, so this response will be sent to ChromeExtension
-					response.writeHead(200, {"Content-Type": "text/plain"});
-					response.end("Response End");
 				}
 			});
 		}
 		else
 		{
 			// request response
-			response.writeHead(200, {"Content-Type": "text/plain"});
-			response.end("Invalid Request");
+			response.writeHead(404);
+			response.end();
 			
 			decrementRequestCount();
 		}

@@ -8,7 +8,7 @@ auth = require("./routes/auth"),
 originString = "chrome-extension://",
 request_count = 0;
 
-exports.start = function start() {
+function start() {
 	function onRequest(request, response) {
 		var pathname = url.parse(request.url).pathname;
 		console.log("Request for " + pathname + " received");
@@ -74,7 +74,7 @@ exports.start = function start() {
 	}
 
 	http.createServer(onRequest).listen(8888);
-	console.log("Server has started");
+	console.log("Server Started");
 };
 
 function incrementRequestCount() {
@@ -83,3 +83,7 @@ function incrementRequestCount() {
 }
 
 function decrementRequestCount() { request_count--; }
+
+module.exports = {
+	start: start
+};

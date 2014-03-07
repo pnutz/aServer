@@ -1,7 +1,7 @@
 var http = require("http"),
 TIMEOUT_CONST = 10000;
 
-exports.authorizeRequest = function (token, userID, email, callback) {
+function authorizeRequest(token, userID, email, callback) {
 	var options = {
 		host: "localhost",
 		port: "3000",
@@ -46,3 +46,7 @@ function timeout_wrapper(request) {
 		request.abort();
 	};
 }
+
+module.exports = {
+	authorizeRequest: authorizeRequest
+};

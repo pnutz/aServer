@@ -21,11 +21,11 @@ function iterate_children(parent_node, child_calculation) {
 }
 
 createRootElement() {
-	var root = new Element(1, null, "root", level, tag_id, html)
+	var root = new Element(null, 1, tag_id, "root", level, html)
 	iterate_children(root, createElement)
 }
 
 createElement() {
-	var root = new Element(1, element_id, relation, level, tag_id, html)
+	var root = new Element(element_id, 1, tag_id, relation, level, html)
 	iterate_children(root, createElement)
 }

@@ -4,14 +4,16 @@ template, element, tag,
 TAG_TABLE = "ser_html_tag",
 TAG_COLUMN = "tag_name",
 SimpleTable = require("./simple_table"),
-Access = require("./table_access");
+Access = require("./table_access"),
+Template = require("./template");
 
 // constructor
 // tag can be either tag_id or tag
 function Element(element_id, template_id, tag, relation, level, html) {
-	if (template_id == null || relation == null || level == null || tag == null || html == null ||
-		relation != "root" || relation != "sibling" || relation != "child" || relation != "parent") {
+	if (template_id == null || relation == null || level == null || tag == null || html == null) {
 		throw("element: invalid input");
+	} else if (relation != "root" || relation != "sibling" || relation != "child" || relation != "parent") {
+		throw("element: invalid relation");
 	}
 	
 	if (element_id != null) {
@@ -68,7 +70,7 @@ Element.prototype.save = function() {
 // GET: element
 Object.defineProperty(Element.prototype, "element", {
 	get: function() {
-		if (this.element == null) {
+		if (this.element == null && this.element_id != null) {
 			this.element = Access.getElementById(this.element_id);
 		}
 		return this.element;

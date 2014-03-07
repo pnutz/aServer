@@ -4,6 +4,7 @@ url = require("url"),
 qs = require("querystring"),
 // Authentication module
 auth = require("./routes/auth"),
+parse = require("./html_parser"),
 // TODO: Change origin to contain chrome extension full url (once ID is set)
 originString = "chrome-extension://",
 request_count = 0;
@@ -42,9 +43,12 @@ function start() {
 					// send http request to WebApp
 					if (post.userID != null && post.email != null && post.token != null) {
 						auth.authorizeRequest(post.token, post.userID, post.email, function (result) {
+
 							/*if (result === true)
-							{
-								// request response
+							{*/
+								parse.createTemplate(post.userID, post.selection, post.element, post.html, post.text, post.url, post.domain)
+							
+							/*	// request response
 								response.writeHead(200, {"Content-Type": "text/plain"});
 								response.end("Authorization Token Accepted");
 							}

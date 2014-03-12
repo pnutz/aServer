@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   `relation` ENUM('root','sibling','child','parent') NOT NULL,
   `level` INT NOT NULL,
   `tag_id` INT NOT NULL,
-  `html` VARCHAR(255) NOT NULL,
+  `html` MEDIUMBLOB NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_element_template_idx` (`template_id` ASC),
   INDEX `fk_element_tag_idx` (`tag_id` ASC),

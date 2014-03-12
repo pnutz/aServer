@@ -22,18 +22,23 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 					setImmediate(newTemplate.save(function(template_id) {
 						if (template_id != null) {
 							// parse HTML
-							console.log(html);
 							var $ = cheerio.load(html);
 							console.log("Created DOM");
-							var elementDom = $(".TwoReceipt")[0];
-							console.log(elementDom);
-							debugger;
-							// elementDom length 0... body/html not included?!
 							
+							// find defined element.  if it doesn't exist, take the root (body)
+							var elementDom = $(".TwoReceipt")[0];
+							if (elementDom == null) {
+								elementDom = $.root();
+							}
+							var tag;
+							if (elementDom[0].type == "root") {
+								tag = "body";
+							} else {
+								tag = elementDom[0].name;
+							}
+							debugger;
 							// create root element
-							//selection
-							//var test7 = text;
-							var rootElement = new Element(null, null, template_id, elementDom.name, "root", 0, element);
+							var rootElement = new Element(null, null, template_id, tag, "root", 0, element);
 							rootElement.save(function(element_id) {
 								console.log(element_id);
 							});

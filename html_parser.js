@@ -22,13 +22,21 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 					setImmediate(newTemplate.save(function(template_id) {
 						if (template_id != null) {
 							// parse HTML
-							var $ = createDOM(html);
-							debugger;
+							console.log(html);
+							var $ = cheerio.load(html);
 							console.log("Created DOM");
+							var elementDom = $(".TwoReceipt")[0];
+							console.log(elementDom);
+							debugger;
+							// elementDom length 0... body/html not included?!
 							
 							// create root element
-							console.log($(".TwoReceipt").html());
-							//var rootElement = new Element(null, null, template_id, TAG, "root", 0, HTML);
+							//selection
+							//var test7 = text;
+							var rootElement = new Element(null, null, template_id, elementDom.name, "root", 0, element);
+							rootElement.save(function(element_id) {
+								console.log(element_id);
+							});
 						}
 					}));
 				} else {
@@ -38,11 +46,6 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 		}
 	}));
 };
-
-function createDOM(html) {
-	return cheerio.load(html);
-}
-
 
 // iterates through all DOM children of parent_node and runs function child_calculation
 /*function iterate_children(parent_node, child_calculation) {

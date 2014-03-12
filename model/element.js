@@ -12,7 +12,7 @@ Template = require("./template");
 function Element(id, element_id, template_id, tag, relation, level, html) {
 	if (template_id == null || relation == null || level == null || tag == null || html == null) {
 		throw("element: invalid input");
-	} else if (relation != "root" || relation != "sibling" || relation != "child" || relation != "parent") {
+	} else if (relation != "root" && relation != "sibling" && relation != "child" && relation != "parent") {
 		throw("element: invalid relation");
 	}
 	

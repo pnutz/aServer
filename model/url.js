@@ -1,69 +1,83 @@
 // url class
-var url, domain_id, html, text,
-domain,
+var id, url, domain_id,
+_domain,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
 SimpleTable = require("./simple_table");
 
 // constructor
 // domain can be either domain_id or domain
-function Url(domain, url, html, text) {
+function Url(id, domain, url) {
 	if (domain == null || url == null) {
 		throw("url: invalid input");
 	}
 	
+	this.id = id;
+	
 	if (typeof domain == "number") {
 		this.domain_id = domain;
-		this.domain = null;
+		this._domain = null;
 	} else {
 		this.domain_id = null;
-		this.domain = domain;
+		this._domain = domain;
 	}
 	
 	this.url = url;
-	
-	if (html != null) {
-		this.html = html;
-	}
-	
-	if (text != null) {
-		this.text = text;
-	}
 }
 
 // save to db
-Url.prototype.save = function() {
-	if (this.domain_id == null) {
-		this.domain_id = SimpleTable.save(DOMAIN_TABLE, DOMAIN_COLUMN, this.domain);
+Url.prototype.save = function(callback) {
+	var local = this;
+	// check if domain exists in db
+	if (local.domain_id == null) {
+		SimpleTable.save(DOMAIN_TABLE, DOMAIN_COLUMN, local._domain, function (domain_id) {
+			local.domain_id = domain_id;
+			var post = {
+				url: local.url,
+				domain_id: local.domain_id
+			};
+			insertUrl(post, function(id) {
+				local.id = id;
+				callback(id);
+			});
+		});
 	}
-
-	var post = {
-		url: this.url,
-		domain_id: this.domain_id,
-		html: this.html,
-		text: this.text
-	};
+	// we know domain already exists in db
+	else {
+		var post = {
+			url: local.url,
+			domain_id: local.domain_id
+		};
 	
-	var query = db.query("INSERT INTO ser_url SET ?", post, function(err, rows) {
+		insertUrl(post, function(id) {
+			local.id = id;
+			callback(id);
+		});
+	}
+};
+
+function insertUrl(post, callback) {
+	var query = db.query("INSERT INTO ser_url SET ?", post, function(err, result) {
 		if (err) {
 			db.rollback(function() {
 				throw err;
 			});
+			callback(null);
+		} else {
+			console.log("Inserted ID " + result.insertId + " into ser_url");
+			callback(result.insertId);
 		}
-		console.log(rows);
-		return rows;
 	});
-	
 	console.log(query.sql);
-};
+}
 
 // GET: domain
 Object.defineProperty(Url.prototype, "domain", {
 	get: function() {
-		if (this.domain == null) {
-			this.domain = SimpleTable.getValueById(DOMAIN_TABLE, DOMAIN_COLUMN, this.domain_id)
+		if (this._domain == null) {
+			this._domain = SimpleTable.getValueById(DOMAIN_TABLE, DOMAIN_COLUMN, this.domain_id)
 		}
-		return this.domain;
+		return this._domain;
 	}
 });
 

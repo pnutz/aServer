@@ -1,131 +1,125 @@
 // complex table accessor functions
 var Element = require("./element"),
+ElementAttribute = require("./element_attribute"),
 Template = require("./template"),
 ReceiptAttribute = require("./receipt_attribute"),
 Url = require("./url"),
 Text = require("./text");
 
-function getElementById(id) {
-	var query = db.query("SELECT * FROM ser_element WHERE id = ?", id, function(err, rows) {
+// runs callback on selected rows, null if no rows selected
+function selectByColumn(table, column, id, callback) {
+	var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = ?", id, function(err, rows) {
 		if (err) throw err;
 		
-		console.log(rows);
-		if (rows.length > 0) {
+		if (rows.length != 0) {
 			var result = rows[0];
-			return new Element(
+			callback(result);
+		}
+		else if (callback) {
+			console.log("No rows selected");
+			callback(null);
+		}
+	});
+	console.log(query.sql);
+}
+
+function getElementById(id, callback) {
+	selectByColumn("ser_element", "id", id, function(result) {
+		if (result != null) {
+			callback(new Element(result.id,
 				result.element_id, result.template_id,
 				result.tag_id,	result.relation,
 				result.level,	result.html
-			);
-		}
-		else
-		{
-			return null;
+			));
+		} else {
+			callback(null);
 		}
 	});
-	
-	console.log(query.sql);
 }
 
-function getElementsByTemplate(template_id) {
-	var query = db.query("SELECT * FROM ser_element WHERE template_id = ?", template_id, function(err, rows) {
-		if (err) {
-			db.rollback(function() {
-				throw err;
-			});
-		}
-		console.log(rows);
-		return rows;
-	});
-	// create array and push to it each element
-	console.log(query.sql);
-}
-
-function getReceiptAttributeById(id) {
-	var query = db.query("SELECT * FROM ser_receipt_attribute WHERE id = ?", id, function(err, rows) {
-		if (err) throw err;
-		
-		console.log(rows);
-		if (rows.length > 0) {
-			var result = rows[0];
-			return new ReceiptAttribute(
-				result.group_id, result.attribute_name, result.data_type
-			);
-		}
-		else
-		{
-			return null;
+function getElementsByTemplate(template_id, callback) {
+	selectByColumn("ser_element", "template_id", template_id, function(result) {
+		if (result != null) {
+			// foreach
+			/*callback(new Element(result.id,
+				result.element_id, result.template_id,
+				result.tag_id,	result.relation,
+				result.level,	result.html
+			));*/
+		} else {
+			callback(null);
 		}
 	});
-	
-	console.log(query.sql);
 }
 
-function getTemplateById(id) {
-	var query = db.query("SELECT * FROM ser_template WHERE id = ?", id, function(err, rows) {
-		if (err) throw err;
-		
-		console.log(rows);
-		if (rows.length > 0) {
-			var result = rows[0];
-			return new Template(
+function getElementAttributesByElement(element_id, callback) {
+	selectByColumn("ser_element_attribute", "element_id", element_id, function(result) {
+		if (result != null) {
+			// foreach
+			/*callback(new ElementAttribute(
+				result.id, result.attribute_type_id, result.attribute_value_id, result.element_id
+			));*/
+		} else {
+			callback(null);
+		}
+	});
+}
+
+function getReceiptAttributeById(id, callback) {
+	selectByColumn("ser_receipt_attribute", "id", id, function(result) {
+		if (result != null) {
+			callback(new ReceiptAttribute(
+				result.id, result.group_id, result.attribute_name, result.data_type
+			));
+		} else {
+			callback(null);
+		}
+	});
+}
+
+function getTemplateById(id, callback) {
+	selectByColumn("ser_template", "id", id, function(result) {
+		if (result != null) {
+			callback(new Template(result.id,
 				result.attribute_id, result.url_id,
 				result.text_id, result.user_id
-			);
-		}
-		else
-		{
-			return null;
+			));
+		} else {
+			callback(null);
 		}
 	});
-	
-	console.log(query.sql);
 }
 
-function getTextById(id) {
-	var query = db.query("SELECT * FROM ser_text WHERE id = ?", id, function(err, rows) {
-		if (err) throw err;
-		
-		console.log(rows);
-		if (rows.length > 0) {
-			var result = rows[0];
-			return new Text(
-				
-			);
-		}
-		else
-		{
-			return null;
+function getTextById(id, callback) {
+	selectByColumn("ser_text", "id", id, function(result) {
+		if (result != null) {
+			callback(new Text(result.id,
+				result.template_id, result.element_id,
+				result.text_id, result.alignment
+			));
+		} else {
+			callback(null);
 		}
 	});
-	
-	console.log(query.sql);
 }
 
-function getUrlById(id) {
-	var query = db.query("SELECT * FROM ser_url WHERE id = ?", id, function(err, rows) {
-		if (err) throw err;
-		
-		console.log(rows);
-		if (rows.length > 0) {
-			var result = rows[0];
-			return new Url(
-				result.domain_id, result.url
+function getUrlById(id, callback) {
+	selectByColumn("ser_url", "id", id, function(result) {
+		if (result != null) {
+			callback(new Url(result.id,
+				result.domain_id, result.url,
 				result.html, result.text
-			);
-		}
-		else
-		{
-			return null;
+			));
+		} else {
+			callback(null);
 		}
 	});
-	
-	console.log(query.sql);
 }
 
 module.exports = {
 	getElementById: getElementById,
 	getElementsByTemplate: getElementsByTemplate,
+	getElementAttributesByElement: getElementAttributesByElement,
 	getReceiptAttributeById: getReceiptAttributeById,
 	getTemplateById: getTemplateById,
 	getTextById: getTextById,

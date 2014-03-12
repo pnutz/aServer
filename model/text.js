@@ -1,85 +1,86 @@
 // text class
-var template_id, element_id, text_id, alignment,
-template, element, text,
+var id, template_id, element_id, text_id, alignment,
+_template, _element, _text,
 Access = require("./table_access");
 
 // constructor
-function Text(template_id, element_id, text_id, alignment) {
+function Text(id, template_id, element_id, text_id, alignment) {
 	if (template_id == null || element_id == null || text_id == null || alignment == null) {
 		throw("text: invalid input");
 	} else if (alignment != "root" || alignment != "left" || alignment != "right") {
 		throw("text: invalid alignment");
 	}
 	
+	this.id = id;
+	
 	this.template_id = template_id;
-	this.template = null;
+	this._template = null;
 	
-	if (element_id != null) {
-		this.element_id = element_id;
-	} else {
-		this.element_id = null;
-	}
-	this.element = null;
+	this.element_id = element_id;
+	this._element = null;
 	
-	if (text_id != null) {
-		this.text_id = text_id;
-	}	else {
-		this.text_id = null;
-	}
-	this.text = null;
+	this.text_id = text_id;
+	this._text = null;
 	
 	this.alignment = alignment;
 }
 
 // save to db
-Element.prototype.save = function() {
+Text.prototype.save = function(callback) {
 	var post = {
 		template_id: this.template_id,
 		element_id: this.element_id,
 		text_id: this.text_id,
 		alignment: this.alignment
 	};
-	
-	var query = db.query("INSERT INTO ser_text SET ?", post, function(err, rows) {
+	insertText(post, function(id) {
+		this.id = id;
+		callback(id);
+	});
+};
+
+function insertText(post, callback) {
+	var query = db.query("INSERT INTO ser_text SET ?", post, function(err, result) {
 		if (err) {
 			db.rollback(function() {
 				throw err;
 			});
+			callback(null);
+		} else {
+			console.log("Inserted ID " + result.insertId + " into ser_text");
+			callback(result.insertId);
 		}
-		console.log(rows);
-		return rows;
 	});
-	
 	console.log(query.sql);
-};
+}
 
 // GET: template
 Object.defineProperty(Text.prototype, "template", {
 	get: function() {
-		if (this.template == null) {
-			this.template = Access.getTemplateById(this.template_id);
+		if (this._template == null) {
+			this._template = Access.getTemplateById(this.template_id);
 		}
-		return this.template;
+		return this._template;
 	}
 });
 
 // GET: element
 Object.defineProperty(Text.prototype, "element", {
 	get: function() {
-		if (this.element == null && this.element_id != null) {
-			this.element = Access.getElementById(this.element_id);
+		if (this._element == null && this.element_id != null) {
+			this._element = Access.getElementById(this.element_id);
 		}
-		return this.element;
+		return this._element;
 	}
 });
 
 // GET: text
 Object.defineProperty(Text.prototype, "text", {
 	get: function() {
-		if (this.text == null && this.text_id != null) {
-			this.text = Access.getTextById(this.text_id);
+		if (this._text == null && this.text_id != null) {
+			this._text = Access.getTextById(this.text_id);
 		}
-		return this.text;
+		return this._text;
 	}
 });
 

@@ -1,6 +1,6 @@
 // element_attribute class
-var type_id, value_id, element_id,
-type, value, element,
+var id, type_id, value_id, element_id,
+_type, _value, _element,
 TYPE_TABLE = "ser_element_attribute_type",
 TYPE_COLUMN = "attribute_type",
 VALUE_TABLE = "ser_element_attribute_value",
@@ -11,86 +11,138 @@ Access = require("./table_access");
 
 // constructor
 // type/value can be either type_id/value_id or type/value
-function ElementAttribute(type, value, element_id) {
+function ElementAttribute(id, type, value, element_id) {
 	if (type == null || value == null || element_id == null) {
 		throw("element_attribute: invalid input");
 	}
+
+	this.id = id;
 	
 	if (typeof type == "number") {
 		this.type_id = type;
-		this.type = null;
+		this._type = null;
 	} else {
 		this.type_id = null;
-		this.type = type;
+		this._type = type;
 	}
 	
 	if (typeof value == "number") {
 		this.value_id = value;
-		this.value = null;
+		this._value = null;
 	} else {
 		this.value_id = null;
-		this.value = value;
+		this._value = value;
 	}
-	
+
 	this.element_id = element_id;
-	this.element = null;
+	this._element = null;
 }
 
 // save to db
-ElementAttribute.prototype.save = function() {
-	if (this.type_id == null) {
-		this.type_id = SimpleTable.save(TYPE_TABLE, TYPE_COLUMN, this.type);
+ElementAttribute.prototype.save = function(callback) {
+	var local = this;
+	// check if type exists in db
+	if (local.type_id == null && local.value_id == null) {
+		SimpleTable.save(TYPE_TABLE, TYPE_COLUMN, local._type, function(type_id) {
+			local.type_id = type_id;
+			// check if type & value exist in db
+			if (local.value_id == null) {
+				SimpleTable.save(VALUE_TABLE, VALUE_COLUMN, local._value, function(value_id) {
+					local.value_id = value_id;
+					var post = {
+						attribute_type_id: local.type_id,
+						attribute_value_id: local.value_id,
+						element_id: local.element_id
+					};
+					insertElementAttribute(post, function(id) {
+						local.id = id;
+						callback(id);
+					});
+				});
+			} else {
+				var post = {
+					attribute_type_id: local.type_id,
+					attribute_value_id: local.value_id,
+					element_id: local.element_id
+				};
+				insertElementAttribute(post, function(id) {
+					local.id = id;
+					callback(id);
+				});
+			}
+		});
 	}
-	if (this.value_id == null) {
-		this.value_id = SimpleTable.save(VALUE_TABLE, VALUE_COLUMN, this.value);
+	// we know type already exists in db
+	else if (local.value_id == null) {
+		SimpleTable.save(VALUE_TABLE, VALUE_COLUMN, local._value, function(value_id) {
+			local.value_id = value_id;
+			var post = {
+				attribute_type_id: local.type_id,
+				attribute_value_id: local.value_id,
+				element_id: local.element_id
+			};
+			insertElementAttribute(post, function(id) {
+				local.id = id;
+				callback(id);
+			});
+		});
 	}
-	
-	var post = {
-		element_id: this.element_id,
-		attribute_type_id: this.type_id,
-		attribute_value_id: this.value_id
-	};
-	
-	var query = db.query("INSERT INTO ser_element_attribute SET ?", post, function(err, rows) {
+	// we know value & type already exist in db
+	else {
+		var post = {
+			attribute_type_id: local.type_id,
+			attribute_value_id: local.value_id,
+			element_id: local.element_id
+		};
+		insertElementAttribute(post, function(id) {
+			local.id = id;
+			callback(id);
+		});
+	}
+}
+
+function insertElementAttribute(post, callback) {
+	var query = db.query("INSERT INTO ser_element_attribute SET ?", post, function(err, result) {
 		if (err) {
 			db.rollback(function() {
 				throw err;
 			});
+			callback(null);
+		} else {
+			console.log("Inserted ID " + result.insertId + " into ser_element_attribute");
+			callback(result.insertId);
 		}
-		console.log(rows);
-		return rows;
 	});
-	
 	console.log(query.sql);
 }
 
 // GET: type
 Object.defineProperty(ElementAttribute.prototype, "type", {
 	get: function() {
-		if (this.type == null) {
-			this.type = SimpleTable.getValueById(TYPE_TABLE, TYPE_COLUMN, this.type_id);
+		if (this._type == null) {
+			this._type = SimpleTable.getValueById(TYPE_TABLE, TYPE_COLUMN, this.type_id);
 		}
-		return this.type;
+		return this._type;
 	}
 });
 
 // GET: value
 Object.defineProperty(ElementAttribute.prototype, "value", {
 	get: function() {
-		if (this.value == null) {
-			this.value = SimpleTable.getValueById(VALUE_TABLE, VALUE_COLUMN, this.value_id);
+		if (this._value == null) {
+			this._value = SimpleTable.getValueById(VALUE_TABLE, VALUE_COLUMN, this.value_id);
 		}
-		return this.value;
+		return this._value;
 	}
 });
 
 // GET: element
 Object.defineProperty(ElementAttribute.prototype, "element", {
 	get: function() {
-		if (this.element == null) {
-			this.element = Access.getElementById(this.element_id);
+		if (this._element == null) {
+			this._element = Access.getElementById(this.element_id);
 		}
-		return this.element;
+		return this._element;
 	}
 });
 

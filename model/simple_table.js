@@ -1,71 +1,64 @@
 // static simple_table class
 
 // returns value of object in db with id. returns null if it does not exist
-function getValueById(table, column, id) {
+function getValueById(table, column, id, callback) {
 	var query = db.query("SELECT * FROM " + table + " WHERE id = ?", id, function(err, rows) {
 		if (err) throw err;
 		
-		console.log(rows);
-		if (rows.length > 0) {
+		if (rows.length != 0) {
 			var result = rows[0];
-			return result[column];
-		}	else	{
-			return null;
+			console.log(result);
+			callback(result[column]);
+		} else {
+			console.log("No rows selected");
+			callback(null);
 		}
 	});
-	
 	console.log(query.sql);
 };
 
 // returns id of object in db with value. returns null if it does not exist
-function getIdByValue(table, column, value) {
-	var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = ?", id, function(err, rows) {
+function getIdByValue(table, column, value, callback) {
+	var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = ?", value, function(err, rows) {
 		if (err) throw err;
 		
-		console.log(rows);
-		if (rows.length > 0) {
+		if (rows.length != 0) {
 			var result = rows[0];
-			return result.id;
-		}	else {
-			return null;
+			console.log(result);
+			callback(result.id);
+		} else {
+			console.log("No rows selected");
+			callback(null);
 		}
 	});
-	
 	console.log(query.sql);
 };
 
 // saves object with value in db and returns id
-function save(table, column, value) {
+function save(table, column, value, callback) {
 	// check if object with value already exists
-	var resultId = getObjectByValue(table, column, value);
-	
-	if (resultId == null)
-	{
-		var post = {
-			column: value
-		};
-		
-		var query = db.query("INSERT INTO " + table + " SET ?", post, function(err, rows) {
-			if (err) {
-				db.rollback(function() {
-					throw err;
-				});
-			}
-			console.log(rows);
+	getIdByValue(table, column, value, function(resultId) {
+		if (resultId == null)
+		{
+			var post = {};
+			post[column] = value;
 			
-			if (rows.length > 0) {
-				return rows[0].id;
-			}
-			else
-			{
-				return null;
-			}
-		});
-		
-		console.log(query.sql);
-	} else {
-		return resultId;
-	}
+			var query = db.query("INSERT INTO " + table + " SET ?", post, function(err, result) {
+				if (err) {
+					db.rollback(function() {
+						throw err;
+					});
+					callback(null);
+				} else {
+					console.log("Inserted ID " + result.insertId + " into " + table);
+					callback(result.insertId);
+				}
+			});
+			console.log(query.sql);
+		} else {
+			callback(resultId);
+		}
+	});
 };
 
 module.exports = {

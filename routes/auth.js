@@ -19,7 +19,8 @@ function authorizeRequest(token, userID, email, callback) {
 		
 		response.on("end", function () {
 			console.log("Finished sending http request to WebApp:");
-			console.log(str);
+			// print out authentication server response
+			console.log(str + "\n");
 			clearTimeout(timeout);
 			// if response was false, return callback(false)
 			callback(true);

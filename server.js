@@ -32,38 +32,40 @@ function start() {
 			});
 			
 			// client finished sending request
-			request.on("end", function() {
-				decrementRequestCount();
-			
+			request.on("end", function() {			
 				// ignore favicon requests
 				if (pathname !== "/favicon.ico") {
 					var post = qs.parse(requestBody);
-					console.log(post);
+					console.log(post.attribute + " data received for " + post.email);
+					//console.log(post);
 					
 					// send http request to WebApp
 					if (post.userID != null && post.email != null && post.token != null) {
-						auth.authorizeRequest(post.token, post.userID, post.email, function (result) {
-
-							/*if (result === true)
-							{*/
-								parse.createTemplate(post.userID, post.selection, post.element, post.html, post.text, post.url, post.domain)
-							
-							/*	// request response
-								response.writeHead(200, {"Content-Type": "text/plain"});
-								response.end("Authorization Token Accepted");
-							}
-							else
-							{
+						auth.authorizeRequest(post.token, post.userID, post.email, function(result) {
+							if (result === true) {
 								// request response
-								response.writeHead(200, {"Content-Type": "text/plain"});
-								response.end("Authorization Token Denied");
-							}*/
+								//response.writeHead(200, {"Content-Type": "text/plain"});
+								//response.end("Authorization Token Accepted");
+							} else {
+								// request response
+								//response.writeHead(200, {"Content-Type": "text/plain"});
+								//response.end("Authorization Token Denied");
+							}
+							
+							setImmediate(parse.generateTemplate(post.userID, post.attribute, post.selection, post.element, post.html, post.text, post.url, post.domain));
+							
 							response.writeHead(200, {"Content-Type": "text/plain"});
 							response.end("Authorization Token Accepted");
+							decrementRequestCount();
+							console.log("Request Completed");
 						});
 					}
 					console.log("Request End");
 				}
+			});
+			
+			request.on("error", function(err) {
+				console.log(err);
 			});
 		}
 		else

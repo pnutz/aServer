@@ -1,11 +1,11 @@
 // text class
-var id, template_id, element_id, text_id, alignment,
+var id, template_id, element_id, text_id, alignment, text,
 _template, _element, _text,
 Access = require("./table_access");
 
 // constructor
-function Text(id, template_id, element_id, text_id, alignment) {
-	if (template_id == null || element_id == null || text_id == null || alignment == null) {
+function Text(id, template_id, element_id, text_id, alignment, text) {
+	if (template_id == null || element_id == null || text_id == null || alignment == null || text == null) {
 		throw("text: invalid input");
 	} else if (alignment != "root" || alignment != "left" || alignment != "right") {
 		throw("text: invalid alignment");
@@ -23,6 +23,8 @@ function Text(id, template_id, element_id, text_id, alignment) {
 	this._text = null;
 	
 	this.alignment = alignment;
+	
+	this.text = text;
 }
 
 // save to db
@@ -31,7 +33,8 @@ Text.prototype.save = function(callback) {
 		template_id: this.template_id,
 		element_id: this.element_id,
 		text_id: this.text_id,
-		alignment: this.alignment
+		alignment: this.alignment,
+		text: this.text
 	};
 	insertText(post, function(id) {
 		this.id = id;
@@ -75,7 +78,7 @@ Object.defineProperty(Text.prototype, "element", {
 });
 
 // GET: text
-Object.defineProperty(Text.prototype, "text", {
+Object.defineProperty(Text.prototype, "sibling", {
 	get: function() {
 		if (this._text == null && this.text_id != null) {
 			this._text = Access.getTextById(this.text_id);

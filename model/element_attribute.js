@@ -1,5 +1,5 @@
 // element_attribute class
-var id, type_id, value_id, element_id,
+var type_id, value_id, element_id,
 _type, _value, _element,
 TYPE_TABLE = "ser_element_attribute_type",
 TYPE_COLUMN = "attribute_type",
@@ -11,12 +11,10 @@ Access = require("./table_access");
 
 // constructor
 // type/value can be either type_id/value_id or type/value
-function ElementAttribute(id, type, value, element_id) {
+function ElementAttribute(type, value, element_id) {
 	if (type == null || value == null || element_id == null) {
 		throw("element_attribute: invalid input");
 	}
-
-	this.id = id;
 	
 	if (typeof type == "number") {
 		this.type_id = type;
@@ -54,9 +52,8 @@ ElementAttribute.prototype.save = function(callback) {
 						attribute_value_id: local.value_id,
 						element_id: local.element_id
 					};
-					insertElementAttribute(post, function(id) {
-						local.id = id;
-						callback(id);
+					insertElementAttribute(post, function() {
+						callback();
 					});
 				});
 			} else {
@@ -65,9 +62,8 @@ ElementAttribute.prototype.save = function(callback) {
 					attribute_value_id: local.value_id,
 					element_id: local.element_id
 				};
-				insertElementAttribute(post, function(id) {
-					local.id = id;
-					callback(id);
+				insertElementAttribute(post, function() {
+					callback();
 				});
 			}
 		});
@@ -81,9 +77,8 @@ ElementAttribute.prototype.save = function(callback) {
 				attribute_value_id: local.value_id,
 				element_id: local.element_id
 			};
-			insertElementAttribute(post, function(id) {
-				local.id = id;
-				callback(id);
+			insertElementAttribute(post, function() {
+				callback();
 			});
 		});
 	}
@@ -92,11 +87,10 @@ ElementAttribute.prototype.save = function(callback) {
 		var post = {
 			attribute_type_id: local.type_id,
 			attribute_value_id: local.value_id,
-			element_id: local.element_id
+			element_id: local.element_ids
 		};
-		insertElementAttribute(post, function(id) {
-			local.id = id;
-			callback(id);
+		insertElementAttribute(post, function() {
+			callback();
 		});
 	}
 }
@@ -109,8 +103,8 @@ function insertElementAttribute(post, callback) {
 			});
 			callback(null);
 		} else {
-			console.log("Inserted ID " + result.insertId + " into ser_element_attribute");
-			callback(result.insertId);
+			console.log("Inserted into ser_element_attribute");
+			callback();
 		}
 	});
 	console.log(query.sql);

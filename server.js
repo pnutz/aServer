@@ -2,19 +2,97 @@ var http = require("http"),
 sys = require("sys"),
 url = require("url"),
 qs = require("querystring"),
+restify = require("restify");
 // Authentication module
 auth = require("./routes/auth"),
 parse = require("./html_parser"),
 // TODO: Change origin to contain chrome extension full url (once ID is set)
 originString = "chrome-extension://",
 request_count = 0;
+var ipAddr = "127.0.0.1";
+var port = "8888";
 
-function start() {
+var server;
+
+function start() 
+{
+  server = restify.createServer({name: "aServer"})
+  server.use(restify.queryParser());
+  server.use(restify.bodyParser());
+  //NOTE:Cross Origin Resource sharing, may or may not need this 
+  //server.use(restify.CORS());
+  
+  //Preconditions for all requests
+  server.pre(function(req, res, next) {
+    //Check the origin string
+    var inOriginStr = req.header('origin');
+    if (!inOriginStr || inOriginStr.indexOf(originString) === -1) 
+    {
+      res.send(new Error("Invalid origin."));
+      console.log("Invalid Origin : " + req.header('origin'));
+      console.log(req.header('origin').indexOf(originString === -1));
+    }
+
+    return next();
+  });
+
+  //Posting template data
+  server.post('/template', function test(req, res, next) {
+		console.log(req.params.attribute + " data received for " + req.params.email);
+    //Authorization
+    if (req.params.userID != null && req.params.email != null && req.params.token != null) 
+    {
+      auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
+        if (result === true) 
+        {
+          // send http request to WebApp
+          setImmediate(parse.generateTemplate(req.params.userID, 
+                                              req.params.attribute, 
+                                              req.params.selection, 
+                                              req.params.element, 
+                                              req.params.html, 
+                                              req.params.text, 
+                                              req.params.url, 
+                                              req.params.domain));
+          res.header("Content-Type", "text/plain");
+          res.send(200, "Authorization Token Accepted");
+          console.log("Request Completed");
+        }
+        else //Webapp authentication failed
+        {
+          res.send(new Error("Authorization Token Denied"));
+          console.log("Request Authorization failed");
+        }
+      });
+    }
+    else
+    {
+      res.send(new Error("Missing user credentials"));
+      console.log("Missing user credentials");
+    }
+
+    return next();
+  });
+
+  //Start listening
+  server.listen(port, ipAddr, function() {
+    console.log("%s listening at %s", server.name, server.url);
+  });
+
+  //Keeping this here until we are sure the behavior is sufficiently reproduced using Restify -ohou
+  /*
 	function onRequest(request, response) {
 		var pathname = url.parse(request.url).pathname;
 		console.log("Request for " + pathname + " received");
 
+    //Not from chome extension, ignore
+    if (request.headers.origin.indexOf(originString === -1)) {
+		  console.log("Request for " + pathname + " received");
+    }
+
 		incrementRequestCount();
+    
+    
 		
 		// POST request
 		if (request.method == "POST" && request.headers.origin.indexOf(originString) !== -1) {		
@@ -79,7 +157,7 @@ function start() {
 		request.resume();
 	}
 
-	http.createServer(onRequest).listen(8888);
+	http.createServer(onRequest).listen(8888);*/
 	console.log("Server Started");
 };
 

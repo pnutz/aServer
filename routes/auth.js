@@ -1,5 +1,6 @@
 var http = require("http"),
 TIMEOUT_CONST = 10000;
+DEBUG_FLAG = true;
 
 function authorizeRequest(token, userID, email, callback) {
 	var options = {
@@ -9,6 +10,10 @@ function authorizeRequest(token, userID, email, callback) {
 		path: "/currencies.json?email=" + email + "&token=" + token
 	};
 
+  if (DEBUG_FLAG) {
+    callback(true);
+    return;
+  }
 	var request = http.get(options, function(response) {
 		var str = "";
 		response.on("data", function (chunk) {

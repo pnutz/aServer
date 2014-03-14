@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   `level` INT NOT NULL,
   `tag_id` INT NOT NULL,
   `html` MEDIUMBLOB NOT NULL,
+  `order` INT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_element_template_idx` (`template_id` ASC),
   INDEX `fk_element_tag_idx` (`tag_id` ASC),

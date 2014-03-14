@@ -14,7 +14,7 @@ var port = "8888";
 
 var server;
 
-function start() 
+function start()
 {
   server = restify.createServer({name: "aServer"})
   server.use(restify.queryParser());

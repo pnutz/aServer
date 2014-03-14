@@ -1,5 +1,5 @@
 // element class
-var id, template_id, element_id, relation, level, tag_id, html,
+var id, template_id, element_id, relation, level, tag_id, html, order,
 _template, _element, _tag,
 TAG_TABLE = "ser_html_tag",
 TAG_COLUMN = "tag_name",
@@ -9,7 +9,7 @@ Template = require("./template");
 
 // constructor
 // tag can be either tag_id or tag
-function Element(id, element_id, template_id, tag, relation, level, html) {
+function Element(id, element_id, template_id, tag, relation, level, html, order) {
 	if (template_id == null || relation == null || level == null || tag == null || html == null) {
 		throw("element: invalid input");
 	} else if (relation != "root" && relation != "sibling" && relation != "child" && relation != "parent") {
@@ -35,43 +35,52 @@ function Element(id, element_id, template_id, tag, relation, level, html) {
 	this.relation = relation;
 	this.level = level;
 	this.html = html;
+	this.order = order;
 }
 
 // save to db
 Element.prototype.save = function(callback) {
 	var local = this;
 	// check if tag exists in db
-	if (local.tag_id == null) {
-		SimpleTable.save(TAG_TABLE, TAG_COLUMN, local._tag, function (tag_id) {
-			local.tag_id = tag_id;
+	if (local.id == null) {
+		if (local.tag_id == null) {
+			SimpleTable.save(TAG_TABLE, TAG_COLUMN, local._tag, function (tag_id) {
+				local.tag_id = tag_id;
+				var post = {
+					template_id: local.template_id,
+					element_id: local.element_id,
+					relation: local.relation,
+					level: local.level,
+					tag_id: local.tag_id,
+					html: local.html,
+					order: local.order
+				};
+				insertElement(post, function(id) {
+					local.id = id;
+					callback(id);
+				});
+			});
+		}
+		// we know tag already exists in db
+		else {
 			var post = {
 				template_id: local.template_id,
 				element_id: local.element_id,
 				relation: local.relation,
 				level: local.level,
 				tag_id: local.tag_id,
-				html: local.html
+				html: local.html,
+				order: local.order
 			};
+		
 			insertElement(post, function(id) {
 				local.id = id;
 				callback(id);
 			});
-		});
-	}
-	// we know tag already exists in db
-	else {
-		var post = {
-			template_id: local.template_id,
-			element_id: local.element_id,
-			relation: local.relation,
-			level: local.level,
-			tag_id: local.tag_id,
-			html: local.html
-		};
-	
-		insertElement(post, function(id) {
-			local.id = id;
-			callback(id);
+		}
+	} else {
+		updateElement(local.id, post, function() {
+			callback();
 		});
 	}
 };
@@ -87,6 +96,20 @@ function insertElement(post, callback) {
 			console.log("Inserted ID " + result.insertId + " into ser_element");
 			callback(result.insertId);
 		}
+	});
+	console.log(query.sql);
+}
+
+function updateElement(id, post, callback) {
+	var query = db.query("UPDATE ser_element SET ? WHERE id = ?", [post, id], function(err, result) {
+		if (err) {
+			db.rollback(function() {
+				throw err;
+			});
+		} else {
+			console.log("Updated ser_element");
+		}
+		callback();
 	});
 	console.log(query.sql);
 }

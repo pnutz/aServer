@@ -25,16 +25,23 @@ function Template(id, attribute_id, url_id, text_id, user_id) {
 
 // save to db
 Template.prototype.save = function(callback) {
+	var local = this;
 	var post = {
-		attribute_id: this.attribute_id,
-		url_id: this.url_id,
-		text_id: this.text_id,
-		user_id: this.user_id
+		attribute_id: local.attribute_id,
+		url_id: local.url_id,
+		text_id: local.text_id,
+		user_id: local.user_id
 	};
-	insertTemplate(post, function(id) {
-		this.id = id;
-		callback(id);
-	});
+	if (local.id == null) {
+		insertTemplate(post, function(id) {
+			local.id = id;
+			callback(id);
+		});
+	} else {
+		updateTemplate(local.id, post, function() {
+			callback();
+		});
+	}
 };
 
 function insertTemplate(post, callback) {
@@ -48,6 +55,20 @@ function insertTemplate(post, callback) {
 			console.log("Inserted ID " + result.insertId + " into ser_template");
 			callback(result.insertId);
 		}
+	});
+	console.log(query.sql);
+}
+
+function updateTemplate(id, post, callback) {
+	var query = db.query("UPDATE ser_template SET ? WHERE id = ?", [post, id], function(err, result) {
+		if (err) {
+			db.rollback(function() {
+				throw err;
+			});
+		} else {
+			console.log("Updated ser_template");
+		}
+		callback();
 	});
 	console.log(query.sql);
 }

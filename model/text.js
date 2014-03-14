@@ -5,9 +5,9 @@ Access = require("./table_access");
 
 // constructor
 function Text(id, template_id, element_id, text_id, alignment, text) {
-	if (template_id == null || element_id == null || text_id == null || alignment == null || text == null) {
+	if (template_id == null || element_id == null || alignment == null || text == null) {
 		throw("text: invalid input");
-	} else if (alignment != "root" || alignment != "left" || alignment != "right") {
+	} else if (alignment != "root" && alignment != "left" && alignment != "right") {
 		throw("text: invalid alignment");
 	}
 	
@@ -29,15 +29,16 @@ function Text(id, template_id, element_id, text_id, alignment, text) {
 
 // save to db
 Text.prototype.save = function(callback) {
+	var local = this;
 	var post = {
-		template_id: this.template_id,
-		element_id: this.element_id,
-		text_id: this.text_id,
-		alignment: this.alignment,
-		text: this.text
+		template_id: local.template_id,
+		element_id: local.element_id,
+		text_id: local.text_id,
+		alignment: local.alignment,
+		text: local.text
 	};
 	insertText(post, function(id) {
-		this.id = id;
+		local.id = id;
 		callback(id);
 	});
 };

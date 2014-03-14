@@ -10,7 +10,7 @@ Text = require("./model/text"),
 Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
-exports.generateTemplate = function(userID, attribute, selection, element, html, text, url, domain) {
+exports.generateTemplate = function(userID, attribute, selection, element, html, body_text, url, domain) {
 	// create domain & url
 	var newUrl = new Url(null, domain, url);
 	setImmediate(newUrl.save(function(url_id) {
@@ -26,50 +26,60 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 							var $ = cheerio.load(html);
 							console.log("Created DOM");
 							// find defined element. if it doesn't exist, take the root (body)
-							var tag;
-							var elementDom = $("." + CLASS_NAME)[0];
-							if (elementDom == null) {
-								elementDom = $.root()[0];
-								if (elementDom.type == "root") {
-									tag = "body";
-								} else {
-									tag = elementDom.name;
-								}
+							var text, tag;
+							var elementDom = $("." + CLASS_NAME);
+
+							if (elementDom.length == 0) {
+								elementDom = $.root();
+								tag = "body";
 							} else {
-								tag = elementDom.name;
+								tag = elementDom[0].name;
+							}
+							var elementText = elementDom.text();
+							
+							// set text
+							if (selection == "") {
+								text = elementText;
+							} else {
+								text = selection;
 							}
 							
 							// create root element
-							var rootElement = new Element(null, null, template_id, tag, "root", 0, element);
+							var rootElement = new Element(null, null, template_id, tag, "root", 0, element, null);
 							rootElement.save(function(element_id) {
-								saveAttributes(element_id, elementDom.attribs);
+								saveAttributes(element_id, elementDom[0].attribs);
 								
-								// create root text
-								var text = $("." + CLASS_NAME).text();
-								if (text === "") {
-									text = $.root().text();
-								}
-								var firstIndex = text.indexOf(TEXT_ID);
-								// selected text
-								if (firstIndex != -1) {
-									var secondIndex = text.indexOf(TEXT_ID, firstIndex);
-									
-									// no left text node
-									if (firstIndex == 0) {
-										
-									}
-									// no right text node
-									if (secondIndex == text.length - TEXT_ID.length) {
-										
-									}
-								}
-								// clicked element
-								else {
-									var text = new Text(null, template_id, element_id, null, "root", text);
-									text.save(function(text_id) {
-										
+								var rootText = new Text(null, template_id, element_id, null, "root", text);
+								rootText.save(function(text_id) {
+									// update template text_id
+									newTemplate.text_id = text_id;
+									newTemplate.save(function() {
+										console.log("Added text_id to template");
 									});
-								}
+									
+									var leftText = rootText;
+									var rightText = rootText;
+									
+									// determine if TEXT_ID exists (possibility for left/right text nodes within element text
+									var firstIndex = elementText.indexOf(TEXT_ID);
+									var secondIndex = elementText.indexOf(TEXT_ID, firstIndex + 1);
+									// leftText is in rootElement
+									if (firstIndex != -1 && firstIndex != 0) {
+										var left = elementText.substring(0, firstIndex);
+										leftText = new Text(null, template_id, element_id, text_id, "left", left);
+										leftText.save(function (left_text_id) {
+											
+										});
+									}
+									// rightText is in rootElement
+									if (firstIndex != -1 && secondIndex != elementText.length - TEXT_ID.length) {
+										var right = elementText.substring(secondIndex + TEXT_ID.length);
+										rightText = new Text(null, template_id, element_id, text_id, "right", right);
+										rightText.save(function (right_text_id) {
+											
+										});
+									}
+								});
 							});
 						}
 					}));
@@ -113,8 +123,20 @@ function saveAttributes(element_id, attributes) {
 	}
 	
 }
-// "-!|_|!-"
+*/
+/*function iterate_parents(root_node, ) {
 
+}
+*/
+function iterate_parents(root_node, root_element_id, template_id, parent_calculation) {
+	root_node = root_node.parent();
+	// if child of immediate parent, relation = "sibling"
+	//element_id, template_id, tag, relation, level, html, order
+	// to get html (outerHTML), $.html(elementDom.children(0))
+	// awareness, research, treatment
+	// i wanted to create a more fun method to donate
+}
+/*
 // find element with classname "TwoReceipt"
 function createRootElement() {
 	var root = new Element(null, null, 1, tag_id, "root", level, html)
@@ -124,4 +146,9 @@ function createRootElement() {
 function createElement(element_id) {
 	var element = new Element(null, element_id, 1, tag_id, relation, level, html)
 	element.save();
-}*/
+}
+function createText() {
+
+}
+
+*/

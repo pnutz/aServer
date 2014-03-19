@@ -17,6 +17,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 	async.series([
 		// create url
 		function(callback) {
+			console.log("----------------URL----------------------");
 			var newUrl = new Url(null, domain, url);
 			newUrl.save(function(newUrl_id) {
 				if (newUrl_id != null) {
@@ -32,6 +33,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 			SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", attribute, function(attribute_id) {
 				// receipt attribute does not exist
 				if (attribute_id != null) {
+					console.log("----------------TEMPLATE----------------------");
 					newTemplate = new Template(null, attribute_id, url_id, null, userID);
 					newTemplate.save(function(newTemplate_id) {
 						if (newTemplate_id != null) {
@@ -50,7 +52,6 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 		function(callback) {
 			$ = cheerio.load(html);
 			console.log("Created DOM");
-			
 			// find defined element. if it doesn't exist, take the root (body)
 			var tag;
 			elementDom = $("." + CLASS_NAME);
@@ -71,6 +72,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 			}
 			
 			// create root element
+			console.log("----------------ROOT ELEMENT----------------------");
 			var rootElement = new Element(null, null, template_id, tag, "root", 0, element, null);
 			rootElement.save(function(rootElement_id) {
 				if (rootElement_id != null) {
@@ -81,11 +83,13 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 				}
 			});
 		},
-		// save root element attributes & text
+		// save root element attributes
 		function(callback) {
-			// can run in parallel, no callback
-			saveAttributes(element_id, elementDom[0].attribs);
-
+			saveAttributes(element_id, elementDom[0].attribs, callback);
+		},
+		// save root text
+		function(callback) {
+			console.log("----------------ROOT TEXT----------------------");
 			var rootText = new Text(null, template_id, element_id, null, "root", text);
 			rootText.save(function(rootText_id) {
 				if (rootText_id != null) {
@@ -110,6 +114,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 			// leftText is in rootElement
 			if (firstIndex != -1 && firstIndex != 0) {
 				var left = elementText.substring(0, firstIndex);
+				console.log("----------------LEFT TEXT----------------------");
 				var leftTextNode = new Text(null, template_id, element_id, left_text_id, "left", left);
 				leftTextNode.save(function (leftTextNode_id) {
 					if (leftTextNode_id != null) {
@@ -130,6 +135,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 			// rightText is in rootElement
 			if (firstIndex != -1 && secondIndex != elementText.length - TEXT_ID.length) {
 				var right = elementText.substring(secondIndex + TEXT_ID.length);
+				console.log("----------------RIGHT TEXT----------------------");
 				var rightTextNode = new Text(null, template_id, element_id, right_text_id, "right", right);
 				rightTextNode.save(function (rightTextNode_id) {
 					if (rightTextNode_id != null) {
@@ -149,12 +155,14 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 			if (elementDom[0].type !== "root") {
 				var parentDom = elementDom.parent();
 				var tag;
-				if (parentDom[0].type === "root") {
+				// parentDom is root
+				if (parentDom.length == 0) {
+					parentDom = $.root();
 					tag = "body";
 				} else {
 					tag = parentDom[0].name;
 				}
-				
+				console.log("----------------PARENT ELEMENT----------------------");
 				var parentElement = new Element(null, element_id, template_id, tag, "parent", -1, $.html(parentDom), null);
 				parentElement.save(function(parentElement_id) {
 					if (parentElement_id != null) {
@@ -168,10 +176,54 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 				callback();
 			}
 		},
-		// calculate sibling elements & text
+		// save parent element attributes
 		function(callback) {
-			iterate_siblings("left", elementDom[0], elementDom, template_id, left_text_id, null, parent_element_id, $, callback);
-			iterate_siblings("right", elementDom[0], elementDom, template_id, right_text_id, null, parent_element_id, $, callback);
+			debugger;
+			if (parent_element_id != null) {
+				if (elementDom.parent().length == 0) {
+					saveAttributes(parent_element_id, $.root()[0].attribs, callback);
+				} else {
+					saveAttributes(parent_element_id, elementDom.parent()[0].attribs, callback);
+				}
+			} else {
+				callback();
+			}
+		},
+		// calculate left sibling elements & text
+		function(callback) {
+			debugger;
+			if (parent_element_id != null) {
+				console.log("----------------LEFT SIBLINGS----------------------");
+				iterate_siblings("left", elementDom[0], elementDom, template_id, left_text_id, null, parent_element_id, $, callback);
+			} else {
+				callback();
+			}
+		},
+		// calculate right sibling elements & text
+		function(callback) {
+			debugger;
+			if (parent_element_id != null) {
+				console.log("----------------RIGHT SIBLINGS----------------------");
+				iterate_siblings("right", elementDom[0], elementDom, template_id, right_text_id, null, parent_element_id, $, callback);
+			} else {
+				callback();
+			}
+		},
+		// calculate all children elements
+		function(callback) {
+			debugger;
+			console.log("----------------CHILD ELEMENTS----------------------");
+			iterate_children(1, elementDom, element_id, template_id, 0, $, callback);
+		},
+		// calculate all parent elements
+		function(callback) {
+			debugger;
+			if (parent_element_id != null) {
+				console.log("----------------PARENT ELEMENTS----------------------");
+				iterate_parent(elementDom.parent(), parent_element_id, template_id, -1, $, callback);
+			} else {
+				callback();
+			}
 		}
 	], function(err, result) {
 		if (err) {
@@ -183,7 +235,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
 };
 
 // for each attribute, create ElementAttribute
-function saveAttributes(element_id, attributes) {
+function saveAttributes(element_id, attributes, func_callback) {
 	if (attributes != null) {
 		async.each(Object.keys(attributes), function(key, callback) {
 			if (attributes.hasOwnProperty(key)) {
@@ -193,6 +245,8 @@ function saveAttributes(element_id, attributes) {
 				if (attributes[key] != "") {
 					var attr = new ElementAttribute(key, attributes[key], element_id);
 					attr.save(callback);
+				} else {
+					callback();
 				}
 			} else {
 				callback();
@@ -203,20 +257,126 @@ function saveAttributes(element_id, attributes) {
 			} else {
 				console.log("Added attributes for element " + element_id);
 			}
+			func_callback();
 		});
+	} else {
+		func_callback();
 	}
 }
 
-// iterates through all DOM children of parent_node and runs function child_calculation
-/*function iterate_children(parent_node, child_calculation, func_callback) {
-	
-	//parent_node.
-	
-	foreach parent_node.children
-	{
-		child_calculation(parent_node.element_id);
+// iterates through all DOM children of parent_node and creates element and attributes
+function iterate_children(level_change, parentDom, parent_element_id, template_id, parent_level, $, func_callback) {
+	if (parentDom.children().length != 0) {
+		var level = parent_level + level_change;
+		var count = 0;
+		async.each(parentDom.children(), function(child, callback) {
+			var childDom = parentDom.children(count);
+			var newElement = new Element(null, parent_element_id, template_id, child.name, "child", level, $.html(child), count);
+			count++;
+			newElement.save(function(element_id) {
+				if (element_id != null) {
+					saveAttributes(element_id, child.attribs, function() {
+						iterate_children(level_change, childDom, element_id, template_id, level, $, callback);
+					});
+				} else {
+					callback(new Error("failed to create child element"));
+				}
+			});
+		}, function(err) {
+			if (err) {
+				console.log(err.message);
+			} else {
+				console.log("Added child elements of level " + level);
+			}
+			func_callback();
+		});
+	} else {
+		func_callback();
 	}
-}*/
+}
+
+// iterates through all DOM parents of parent_node and creates element and attributes
+function iterate_parent(parentDom, parent_element_id, template_id, parent_level, $, func_callback) {
+	if (parentDom.parent().length != 0) {
+		parentDom = parentDom.parent();
+
+		var level = parent_level - 1;
+		var tag;
+		if (parentDom[0].type === "root") {
+			tag = "body";
+		} else {
+			tag = parentDom[0].name;
+		}
+		
+		var newElement = new Element(null, parent_element_id, template_id, tag, "parent", level, $.html(parentDom), null);
+		newElement.save(function(element_id) {
+			if (element_id != null) {
+				console.log("Added parent element of level " + level);
+				saveAttributes(element_id, parentDom[0].attribs, function() {
+					async.series([
+						// iterate down to parent children
+						function(callback) {
+							iterate_parent_children(parentDom, parentDom.prevObject[0], element_id, template_id, level, $, callback);
+						},
+						// iterate up to next parent node
+						function(callback) {
+							iterate_parent(parentDom, element_id, template_id, level, $, callback);
+						}
+					], function(err, result) {
+						if (err) {
+							console.log(err.message);
+						} else {
+							console.log("Completed iterate_parent");
+							func_callback();
+						}
+					});
+				});
+			} else {
+				console.log("failed to create child element");
+				func_callback();
+			}
+		});
+	} else {
+		func_callback();
+	}
+}
+
+// iterates through all DOM parent children of parent_node, except for the original child node and creates element and attributes
+function iterate_parent_children(parentDom, child_node, parent_element_id, template_id, parent_level, $, func_callback) {
+	if (parentDom.children().length > 1) {
+		var level = parent_level - 1;
+		var count = 0;
+		async.each(parentDom.children(), function(child, callback) {
+			// ignore child node
+			if (child != child_node) {
+				var childDom = parentDom.children(count);
+				var newElement = new Element(null, parent_element_id, template_id, child.name, "child", level, $.html(child), count);
+				count++;
+				newElement.save(function(element_id) {
+					if (element_id != null) {
+						saveAttributes(element_id, child.attribs, function() {
+							iterate_children(-1, childDom, element_id, template_id, level, $, callback);
+						});
+					} else {
+						callback(new Error("failed to create child element"));
+					}
+				});
+			} else {
+				count++;
+				callback();
+			}
+		}, function(err) {
+			if (err) {
+				console.log(err.message);
+			} else {
+				console.log("Added child elements of level " + level);
+			}
+			func_callback();
+		});
+	} else {
+		func_callback();
+	}
+}
 
 // iterate through previous sibling until there are no more previous siblings
 function iterate_siblings(direction, element_node, elementDom, template_id, text_id, element_id, parent_element_id, $, func_callback) {
@@ -243,6 +403,8 @@ function iterate_siblings(direction, element_node, elementDom, template_id, text
 					func_callback();
 				}
 			});
+		} else {
+			iterate_siblings(direction, element_node, elementDom, template_id, text_id, element_id, parent_element_id, $, func_callback);
 		}
 	}
 	// element node
@@ -254,48 +416,41 @@ function iterate_siblings(direction, element_node, elementDom, template_id, text
 			elementDom = elementDom.next();
 		}
 		
-		async.series([function(callback) {
-			var newElement = new Element(null, parent_element_id, template_id, elementDom[0].name, "sibling", -2, $.html(elementDom), null);
-			newElement.save(function(newElement_id) {
-				if (newElement_id != null) {
-					element_id = newElement_id;
-					callback();
-				} else {
-					callback(new Error("failed at creating sibling element"));
-				}
-			});
-		}, function(callback) {
-			if (!isBlank(elementDom.text())) {
-				var newText = new Text(null, template_id, element_id, text_id, direction, elementDom.text());
-				newText.save(function(newText_id) {
-					if (newText_id != null) {
-						iterate_siblings(direction, element_node, elementDom, template_id, newText_id, element_id, parent_element_id, $, func_callback);
-						callback();
+		async.series([
+			function(callback) {
+				var level = -2;
+				var newElement = new Element(null, parent_element_id, template_id, elementDom[0].name, "sibling", level, $.html(elementDom), null);
+				newElement.save(function(newElement_id) {
+					if (newElement_id != null) {
+						element_id = newElement_id;
+						iterate_children(-1, elementDom, element_id, template_id, level, $, callback)
 					} else {
-						callback(new Error("failed at creating sibling text for element node"));
+						callback(new Error("failed at creating sibling element"));
 					}
 				});
-			} else {
-				iterate_siblings(direction, element_node, elementDom, template_id, text_id, element_id, parent_element_id, $, func_callback);
+			}, function(callback) {
+				if (!isBlank(elementDom.text())) {
+					var newText = new Text(null, template_id, element_id, text_id, direction, elementDom.text());
+					newText.save(function(newText_id) {
+						if (newText_id != null) {
+							iterate_siblings(direction, element_node, elementDom, template_id, newText_id, element_id, parent_element_id, $, callback);
+						} else {
+							callback(new Error("failed at creating sibling text for element node"));
+						}
+					});
+				} else {
+					iterate_siblings(direction, element_node, elementDom, template_id, text_id, element_id, parent_element_id, $, callback);
+				}
 			}
-		}], function(err, result) {
+		], function(err, result) {
 			if (err) {
 				console.log(err.message);
-				func_callback();
 			} else {
 				console.log("Completed iterate_siblings " + direction + " method for element node");
 			}
+			func_callback();
 		});
 	}
-}
-
-function iterate_parents(root_node, root_element_id, template_id, parent_calculation, callback) {
-	root_node = root_node.parent();
-	// if child of immediate parent, relation = "sibling"
-	//element_id, template_id, tag, relation, level, html, order
-	// to get html (outerHTML), $.html(elementDom.children(0))
-	// awareness, research, treatment
-	// i wanted to create a more fun method to donate
 }
 
 function isBlank(text) {
@@ -306,82 +461,3 @@ function isBlank(text) {
 		return false;
 	}
 }
-// old generateTemplate
-// create domain & url
-	/*var newUrl = new Url(null, domain, url);
-	setImmediate(newUrl.save(function(url_id) {
-		// create template for receipt attribute
-		if (url_id != null) {
-			SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", attribute, function(attribute_id) {
-				// receipt attribute does not exist
-				if (attribute_id != null) {
-					var newTemplate = new Template(null, attribute_id, url_id, null, userID);
-					setImmediate(newTemplate.save(function(template_id) {
-						if (template_id != null) {
-							// parse HTML
-							var $ = cheerio.load(html);
-							console.log("Created DOM");
-							// find defined element. if it doesn't exist, take the root (body)
-							var text, tag;
-							var elementDom = $("." + CLASS_NAME);
-
-							if (elementDom.length == 0) {
-								elementDom = $.root();
-								tag = "body";
-							} else {
-								tag = elementDom[0].name;
-							}
-							var elementText = elementDom.text();
-							
-							// set text
-							if (selection == "") {
-								text = elementText;
-							} else {
-								text = selection;
-							}
-							
-							// create root element
-							var rootElement = new Element(null, null, template_id, tag, "root", 0, element, null);
-							rootElement.save(function(element_id) {
-								saveAttributes(element_id, elementDom[0].attribs);
-								
-								var rootText = new Text(null, template_id, element_id, null, "root", text);
-								rootText.save(function(text_id) {
-									// update template text_id
-									newTemplate.text_id = text_id;
-									newTemplate.save(function() {
-										console.log("Added text_id to template");
-									});
-									
-									var leftText = rootText;
-									var rightText = rootText;
-									
-									// determine if TEXT_ID exists (possibility for left/right text nodes within element text
-									var firstIndex = elementText.indexOf(TEXT_ID);
-									var secondIndex = elementText.indexOf(TEXT_ID, firstIndex + 1);
-									// leftText is in rootElement
-									if (firstIndex != -1 && firstIndex != 0) {
-										var left = elementText.substring(0, firstIndex);
-										leftText = new Text(null, template_id, element_id, text_id, "left", left);
-										leftText.save(function (left_text_id) {
-											
-										});
-									}
-									// rightText is in rootElement
-									if (firstIndex != -1 && secondIndex != elementText.length - TEXT_ID.length) {
-										var right = elementText.substring(secondIndex + TEXT_ID.length);
-										rightText = new Text(null, template_id, element_id, text_id, "right", right);
-										rightText.save(function (right_text_id) {
-											
-										});
-									}
-								});
-							});
-						}
-					}));
-				} else {
-					console.log("Attribute " + attribute + " does not exist");
-				}
-			});
-		}
-	}));*/

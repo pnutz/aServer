@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_text` (
   `element_id` INT NULL,
   `text_id` INT NULL,
   `alignment` ENUM('root','left','right') NOT NULL,
-  `text` VARCHAR(255) NOT NULL,
+  `text` MEDIUMBLOB NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_text_idx` (`text_id` ASC),
   INDEX `fk_text_element_idx` (`element_id` ASC),

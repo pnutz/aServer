@@ -3,7 +3,7 @@ var id, name, datatype, group_id,
 _group,
 GROUP_TABLE = "ser_receipt_attribute_group",
 GROUP_COLUMN = "group_name",
-SimpleTable = require("./simple_table");
+Access = require("./simple_table");
 
 // constructor
 // group can be either group_id or group
@@ -31,7 +31,7 @@ ReceiptAttribute.prototype.save = function(callback) {
   var local = this;
   // check if group exists in db
   if (local.group_id == null && local._group != null) {
-    SimpleTable.save(GROUP_TABLE, GROUP_COLUMN, local._group, function(group_id) {
+    Access.save(GROUP_TABLE, GROUP_COLUMN, local._group, function(group_id) {
       local.group_id = group_id;
       var post = {
         attribute_name: this.name,
@@ -76,21 +76,26 @@ function insertReceiptAttribute(post, callback) {
 // GET: group
 Object.defineProperty(ReceiptAttribute.prototype, "group", {
   get: function() {
-    if (this._group == null && this.group_id != null) {
-      this._group = SimpleTable.getValueById(TAG_TABLE, TAG_COLUMN, this.group_id)
+    var local = this;
+    if (local._group == null && local.group_id != null) {
+      Access.getValueById(TAG_TABLE, TAG_COLUMN, local.group_id, function(group) {
+        local._group = group;
+        return local._group;
+      });
+    } else {
+      return local._group;
     }
-    return this._group;
   }
 });
 
 ReceiptAttribute.getReceiptAttributeById = function(id, callback) {
-  SimpleTable.selectByColumn("ser_receipt_attribute", "id", id, function(result) {
+  Access.selectByColumn("ser_receipt_attribute", "id", id, function(result) {
     if (result != null) {
       callback(new ReceiptAttribute(
-        result.id, result.group_id, result.attribute_name, result.data_type
+        result[0].id, result[0].group_id, result[0].attribute_name, result[0].data_type
       ));
     } else {
-      callback(null);
+      callback(new Error("No Receipt Attribute for ID " + id));
     }
   });
 };

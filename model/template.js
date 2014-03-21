@@ -1,7 +1,9 @@
 // template class
 var id, attribute_id, url_id, text_id, user_id,
 _attribute, _url, _text,
-SimpleTable = require("./simple_table");
+Url = require("./url"),
+Text = require("./text"),
+Access = require("./simple_table");
 
 // constructor
 function Template(id, attribute_id, url_id, text_id, user_id) {
@@ -74,42 +76,57 @@ function updateTemplate(id, post, callback) {
 // GET: receipt_attribute
 Object.defineProperty(Template.prototype, "attribute", {
   get: function() {
-    if (this._attribute == null) {
-      this._attribute = Access.getReceiptAttributeById(this.attribute_id);
+    var local = this;
+    if (local._attribute == null) {
+      Template.getReceiptAttributeById(local.attribute_id, function(attribute) {
+        local._attribute = attribute;
+        return local._attribute;
+      });
+    } else {
+      return local._attribute;
     }
-    return this._attribute;
   }
 });
 
 // GET: url
 Object.defineProperty(Template.prototype, "url", {
   get: function() {
-    if (this._url == null) {
-      this._url = Access.getUrlById(this.url_id);
+    var local = this;
+    if (local._url == null) {
+      Url.getUrlById(local.url_id, function(url) {
+        local._url = url;
+        return local._url;
+      });
+    } else {
+      return local._url;
     }
-    return this._url;
   }
 });
 
 // GET: text
 Object.defineProperty(Template.prototype, "text", {
   get: function() {
-    if (this._text == null && this.text_id != null) {
-      this._text = Access.getTextById(this.text_id);
+    var local = this;
+    if (local._text == null && local.text_id != null) {
+      Text.getTextById(local.text_id, function(text) {
+        local._text = text;
+        return local._text;
+      });
+    } else {
+      return local._text;
     }
-    return this._text;
   }
 });
 
 Template.getTemplateById = function(id, callback) {
-  SimpleTable.selectByColumn("ser_template", "id", id, function(result) {
+  Access.selectByColumn("ser_template", "id", id, function(result) {
     if (result != null) {
-      callback(new Template(result.id,
-        result.attribute_id, result.url_id,
-        result.text_id, result.user_id
+      callback(new Template(result[0].id,
+        result[0].attribute_id, result[0].url_id,
+        result[0].text_id, result[0].user_id
       ));
     } else {
-      callback(null);
+      callback(new Error("No template with ID " + id));
     }
   });
 };

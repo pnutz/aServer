@@ -5,8 +5,8 @@ TYPE_TABLE = "ser_element_attribute_type",
 TYPE_COLUMN = "attribute_type",
 VALUE_TABLE = "ser_element_attribute_value",
 VALUE_COLUMN = "attribute_value",
-SimpleTable = require("./simple_table"),
-Element = require("./element");
+Element = require("./element"),
+Access = require("./simple_table");
 
 // constructor
 // type/value can be either type_id/value_id or type/value
@@ -40,20 +40,18 @@ ElementAttribute.prototype.save = function(callback) {
   var local = this;
   // check if type exists in db
   if (local.type_id == null && local.value_id == null) {
-    SimpleTable.save(TYPE_TABLE, TYPE_COLUMN, local._type, function(type_id) {
+    Access.save(TYPE_TABLE, TYPE_COLUMN, local._type, function(type_id) {
       local.type_id = type_id;
       // check if type & value exist in db
       if (local.value_id == null) {
-        SimpleTable.save(VALUE_TABLE, VALUE_COLUMN, local._value, function(value_id) {
+        Access.save(VALUE_TABLE, VALUE_COLUMN, local._value, function(value_id) {
           local.value_id = value_id;
           var post = {
             attribute_type_id: local.type_id,
             attribute_value_id: local.value_id,
             element_id: local.element_id
           };
-          insertElementAttribute(post, function() {
-            callback();
-          });
+          insertElementAttribute(post, callback);
         });
       } else {
         var post = {
@@ -61,24 +59,20 @@ ElementAttribute.prototype.save = function(callback) {
           attribute_value_id: local.value_id,
           element_id: local.element_id
         };
-        insertElementAttribute(post, function() {
-          callback();
-        });
+        insertElementAttribute(post, callback);
       }
     });
   }
   // we know type already exists in db
   else if (local.value_id == null) {
-    SimpleTable.save(VALUE_TABLE, VALUE_COLUMN, local._value, function(value_id) {
+    Access.save(VALUE_TABLE, VALUE_COLUMN, local._value, function(value_id) {
       local.value_id = value_id;
       var post = {
         attribute_type_id: local.type_id,
         attribute_value_id: local.value_id,
         element_id: local.element_id
       };
-      insertElementAttribute(post, function() {
-        callback();
-      });
+      insertElementAttribute(post, callback);
     });
   }
   // we know value & type already exist in db
@@ -88,9 +82,7 @@ ElementAttribute.prototype.save = function(callback) {
       attribute_value_id: local.value_id,
       element_id: local.element_ids
     };
-    insertElementAttribute(post, function() {
-      callback();
-    });
+    insertElementAttribute(post, callback);
   }
 }
 
@@ -112,35 +104,50 @@ function insertElementAttribute(post, callback) {
 // GET: type
 Object.defineProperty(ElementAttribute.prototype, "type", {
   get: function() {
-    if (this._type == null) {
-      this._type = SimpleTable.getValueById(TYPE_TABLE, TYPE_COLUMN, this.type_id);
+    var local = this;
+    if (local._type == null) {
+      Access.getValueById(TYPE_TABLE, TYPE_COLUMN, local.type_id, function(type) {
+        local._type = type;
+        return local._type;
+      });
+    } else {
+      return local._type;
     }
-    return this._type;
   }
 });
 
 // GET: value
 Object.defineProperty(ElementAttribute.prototype, "value", {
   get: function() {
-    if (this._value == null) {
-      this._value = SimpleTable.getValueById(VALUE_TABLE, VALUE_COLUMN, this.value_id);
+    var local = this;
+    if (local._value == null) {
+      Access.getValueById(VALUE_TABLE, VALUE_COLUMN, local.value_id, function(value) {
+        local._value = value;
+        return local._value;
+      });
+    } else {
+      return local._value;
     }
-    return this._value;
   }
 });
 
 // GET: element
 Object.defineProperty(ElementAttribute.prototype, "element", {
   get: function() {
-    if (this._element == null) {
-      this._element = Access.getElementById(this.element_id);
+    var local = this;
+    if (local._element == null) {
+      Element.getElementById(local.element_id, function(element) {
+        local._element = element;
+        return local._element;
+      });
+    } else {
+      return local._element;
     }
-    return this._element;
   }
 });
 
 ElementAttribute.getElementAttributesByElement = function(element_id, callback) {
-  SimpleTable.selectByColumn("ser_element_attribute", "element_id", element_id, function(result) {
+  Access.selectByColumn("ser_element_attribute", "element_id", element_id, function(result) {
     if (result != null) {
       // foreach
       /*callback(new ElementAttribute(

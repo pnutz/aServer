@@ -1,7 +1,9 @@
 // text class
 var id, template_id, element_id, text_id, alignment, text,
 _template, _element, _text,
-SimpleTable = require("./simple_table");
+Element = require("./element"),
+Template = require("./template"),
+Access = require("./simple_table");
 
 // constructor
 function Text(id, template_id, element_id, text_id, alignment, text) {
@@ -61,42 +63,57 @@ function insertText(post, callback) {
 // GET: template
 Object.defineProperty(Text.prototype, "template", {
   get: function() {
-    if (this._template == null) {
-      this._template = Access.getTemplateById(this.template_id);
+    var local = this;
+    if (local._template == null) {
+      Template.getTemplateById(local.template_id, function(template) {
+        local._template = template;
+        return local._template;
+      });
+    } else {
+      return local._template;
     }
-    return this._template;
   }
 });
 
 // GET: element
 Object.defineProperty(Text.prototype, "element", {
   get: function() {
-    if (this._element == null && this.element_id != null) {
-      this._element = Access.getElementById(this.element_id);
+    var local = this;
+    if (local._element == null && local.element_id != null) {
+      Element.getElementById(local.element_id, function(element) {
+        local._element = element;
+        return local._element;
+      });
+    } else {
+      return local._element;
     }
-    return this._element;
   }
 });
 
 // GET: text
 Object.defineProperty(Text.prototype, "sibling", {
   get: function() {
-    if (this._text == null && this.text_id != null) {
-      this._text = Access.getTextById(this.text_id);
+    var local = this;
+    if (local._text == null && local.text_id != null) {
+      Text.getTextById(local.text_id, function(text) {
+        local._text = text;
+        return local._text;
+      });
+    } else {
+      return local._text;
     }
-    return this._text;
   }
 });
 
 Text.getTextById = function(id, callback) {
-  SimpleTable.selectByColumn("ser_text", "id", id, function(result) {
+  Access.selectByColumn("ser_text", "id", id, function(result) {
     if (result != null) {
-      callback(new Text(result.id,
-        result.template_id, result.element_id,
-        result.text_id, result.alignment
+      callback(new Text(result[0].id,
+        result[0].template_id, result[0].element_id,
+        result[0].text_id, result[0].alignment
       ));
     } else {
-      callback(null);
+      callback(new Error("No text with ID " + id));
     }
   });
 };

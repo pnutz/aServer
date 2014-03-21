@@ -6,7 +6,7 @@ function selectByColumn(table, column, id, callback) {
     if (err) throw err;
     
     if (rows.length != 0) {
-      var result = rows[0];
+      var result = rows;
       callback(result);
     }
     else if (callback) {

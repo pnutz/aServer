@@ -3,7 +3,7 @@ var id, url, domain_id,
 _domain,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
-SimpleTable = require("./simple_table");
+Access = require("./simple_table");
 
 // constructor
 // domain can be either domain_id or domain
@@ -11,7 +11,6 @@ function Url(id, domain, url) {
   if (domain == null || url == null) {
     throw("url: invalid input");
   }
-  
   this.id = id;
   
   if (typeof domain == "number") {
@@ -30,7 +29,7 @@ Url.prototype.save = function(callback) {
   var local = this;
   // check if domain exists in db
   if (local.domain_id == null) {
-    SimpleTable.save(DOMAIN_TABLE, DOMAIN_COLUMN, local._domain, function (domain_id) {
+    Access.save(DOMAIN_TABLE, DOMAIN_COLUMN, local._domain, function (domain_id) {
       local.domain_id = domain_id;
       var post = {
         url: local.url,
@@ -74,22 +73,27 @@ function insertUrl(post, callback) {
 // GET: domain
 Object.defineProperty(Url.prototype, "domain", {
   get: function() {
-    if (this._domain == null) {
-      this._domain = SimpleTable.getValueById(DOMAIN_TABLE, DOMAIN_COLUMN, this.domain_id)
+    var local = this;
+    if (local._domain == null) {
+      Access.getValueById(DOMAIN_TABLE, DOMAIN_COLUMN, local.domain_id, function(domain) {
+        local._domain = domain;
+        return local._domain;
+      });
+    } else {
+      return local._domain;
     }
-    return this._domain;
   }
 });
 
 Url.getUrlById = function(id, callback) {
-  SimpleTable.selectByColumn("ser_url", "id", id, function(result) {
+  Access.selectByColumn("ser_url", "id", id, function(result) {
     if (result != null) {
-      callback(new Url(result.id,
-        result.domain_id, result.url,
-        result.html, result.text
+      callback(new Url(result[0].id,
+        result[0].domain_id, result[0].url,
+        result[0].html, result[0].text
       ));
     } else {
-      callback(null);
+      callback(new Error("No url with ID " + id));
     }
   });
 };

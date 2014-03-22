@@ -115,6 +115,7 @@ function updateElement(id, post, callback) {
 Object.defineProperty(Element.prototype, "element", {
   get: function() {
     var local = this;
+    debugger;
     if (local._element == null && local.element_id != null) {
       Element.getElementById(local.element_id, function(element) {
         local._element = element;
@@ -157,13 +158,13 @@ Object.defineProperty(Element.prototype, "tag", {
 });
 
 Element.getElementById = function(id, callback) {
-  Access.selectByColumn("ser_element", "id", id, function(result) {
+  Access.selectByColumn("ser_element", "id", id, "", function(result) {
     if (result != null) {
       var select_element = new Element(result[0].id,
         result[0].element_id, result[0].template_id,
         result[0].tag_id, result[0].relation,
         result[0].level, result[0].html,
-        result[0].order)
+        result[0].order);
       callback(select_element);
     } else {
       callback(new Error("No element with ID " + id));
@@ -171,17 +172,17 @@ Element.getElementById = function(id, callback) {
   });
 };
 
-Element.getElementsByTemplate = function(template_id, callback) {
-  Access.selectByColumn("ser_element", "template_id", template_id, function(result) {
+Element.getBodyElementByTemplate = function(template_id, callback) {
+  Access.selectByColumn("ser_element", "template_id", template_id, "AND ser_element.order IS NULL", function(result) {
     if (result != null) {
-      // foreach
-      /*callback(new Element(result.id,
-        result.element_id, result.template_id,
-        result.tag_id,  result.relation,
-        result.level,  result.html
-      ));*/
+      var select_element = new Element(result[0].id,
+        result[0].element_id, result[0].template_id,
+        result[0].tag_id, result[0].relation,
+        result[0].level, result[0].html,
+        result[0].order);
+      callback(select_element);
     } else {
-      callback(new Error("No elements with template ID " + template_id));
+      callback(new Error("No body element with template ID " + template_id));
     }
   });
 };

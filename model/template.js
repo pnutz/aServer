@@ -119,12 +119,13 @@ Object.defineProperty(Template.prototype, "text", {
 });
 
 Template.getTemplateById = function(id, callback) {
-  Access.selectByColumn("ser_template", "id", id, function(result) {
+  Access.selectByColumn("ser_template", "id", id, "", function(result) {
     if (result != null) {
-      callback(new Template(result[0].id,
+      var template = new Template(result[0].id,
         result[0].attribute_id, result[0].url_id,
         result[0].text_id, result[0].user_id
-      ));
+      );
+      callback(template);
     } else {
       callback(new Error("No template with ID " + id));
     }

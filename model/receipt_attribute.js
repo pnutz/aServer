@@ -89,7 +89,7 @@ Object.defineProperty(ReceiptAttribute.prototype, "group", {
 });
 
 ReceiptAttribute.getReceiptAttributeById = function(id, callback) {
-  Access.selectByColumn("ser_receipt_attribute", "id", id, function(result) {
+  Access.selectByColumn("ser_receipt_attribute", "id", id, "", function(result) {
     if (result != null) {
       callback(new ReceiptAttribute(
         result[0].id, result[0].group_id, result[0].attribute_name, result[0].data_type

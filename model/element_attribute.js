@@ -147,7 +147,7 @@ Object.defineProperty(ElementAttribute.prototype, "element", {
 });
 
 ElementAttribute.getElementAttributesByElement = function(element_id, callback) {
-  Access.selectByColumn("ser_element_attribute", "element_id", element_id, function(result) {
+  Access.selectByColumn("ser_element_attribute", "element_id", element_id, "", function(result) {
     if (result != null) {
       // foreach
       /*callback(new ElementAttribute(

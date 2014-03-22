@@ -1,8 +1,8 @@
 // static simple_table class
 
 // helper function: runs callback on selected rows, null if no rows selected
-function selectByColumn(table, column, id, callback) {
-  var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = ?", id, function(err, rows) {
+function selectByColumn(table, column, id, queryadd, callback) {
+  var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = ? " + queryadd, id, function(err, rows) {
     if (err) throw err;
     
     if (rows.length != 0) {

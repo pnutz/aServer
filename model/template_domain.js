@@ -3,6 +3,7 @@ var template_id, domain_id, probability_success, variance,
 _template, _domain,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
+async = require("async"),
 Access = require("./simple_table"),
 Template = require("./template");
 
@@ -114,23 +115,25 @@ Object.defineProperty(TemplateDomain.prototype, "template", {
   }
 });
 
-TemplateDomain.getTemplatesByDomain = function(domain_id, callback) {
-  Access.selectByColumn("ser_template_domain", "domain_id", domain_id, function(result) {
+TemplateDomain.getTemplatesByDomain = function(domain_id, func_callback) {
+  Access.selectByColumn("ser_template_domain", "domain_id", domain_id, "ORDER BY probability_success DESC", function(result) {
     if (result != null) {
       var templates = [];
-      async.each(result, function(template, callback) {
-        var newTemplate = new Template();
-        templates.push(newTemplate);
+      async.eachSeries(result, function(template, callback) {
+        Template.getTemplateById(template.template_id, function(selected_template) {
+          templates.push(selected_template);
+          callback();
+        });
       }, function(err) {
         if (err) {
           console.log("getTemplatesByDomain: " + err.message);
-          callback(null);
+          func_callback(null);
         } else {
-          callback(templates);
+          func_callback(templates);
         }
       });
     } else {
-      callback(null);
+      func_callback(null);
     }
   });
 };

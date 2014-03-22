@@ -106,7 +106,7 @@ Object.defineProperty(Text.prototype, "sibling", {
 });
 
 Text.getTextById = function(id, callback) {
-  Access.selectByColumn("ser_text", "id", id, function(result) {
+  Access.selectByColumn("ser_text", "id", id, "", function(result) {
     if (result != null) {
       callback(new Text(result[0].id,
         result[0].template_id, result[0].element_id,

@@ -162,7 +162,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
       // if element is not body (root), it will have a parent element
       if (elementDom[0].type !== "root") {
         var parentDom = elementDom.parent();
-        var tag, html;
+        var tag;
         // parentDom is root
         if (parentDom.length == 0) {
           parentDom = $.root();

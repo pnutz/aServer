@@ -105,14 +105,17 @@ function constructElementPath(template, $, func_callback) {
     function(callback) {
       async.whilst(
         // whilst loop condition
-        function() { debugger; return element.element_id != null; },
+        function() { return element.element_id != null; },
         // whilst loop function
         function(whilst_callback) {
-          debugger;
-          // BUG WITH LAZY LOADING, does not wait for callback before continuing execution!
-          element = element.element;
-          selector += ">" + element.tag;
-          whilst_callback();
+          element.element = function(element_result) {
+            element = element_result;
+            
+            element.tag = function(tag_result) {
+              selector += ">" + tag_result;
+              whilst_callback();
+            };
+          };
         },
         function(err) {
           if (err) {
@@ -125,8 +128,8 @@ function constructElementPath(template, $, func_callback) {
     },
     // use selector on dom to get matches
     function(callback) {
-      possible_matches = $(selector);
       debugger;
+      possible_matches = $(selector);
     }
   ], function(err, result) {
     if (err) {

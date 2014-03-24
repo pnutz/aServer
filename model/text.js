@@ -62,45 +62,45 @@ function insertText(post, callback) {
 
 // GET: template
 Object.defineProperty(Text.prototype, "template", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._template == null) {
       Template.getTemplateById(local.template_id, function(template) {
         local._template = template;
-        return local._template;
+        callback(local._template);
       });
     } else {
-      return local._template;
+      callback(local._template);
     }
   }
 });
 
 // GET: element
 Object.defineProperty(Text.prototype, "element", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._element == null && local.element_id != null) {
       Element.getElementById(local.element_id, function(element) {
         local._element = element;
-        return local._element;
+        callback(local._element);
       });
     } else {
-      return local._element;
+      callback(local._element);
     }
   }
 });
 
 // GET: text
 Object.defineProperty(Text.prototype, "sibling", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._text == null && local.text_id != null) {
       Text.getTextById(local.text_id, function(text) {
         local._text = text;
-        return local._text;
+        callback(local._text);
       });
     } else {
-      return local._text;
+      callback(local._text);
     }
   }
 });

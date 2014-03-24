@@ -103,45 +103,45 @@ function insertElementAttribute(post, callback) {
 
 // GET: type
 Object.defineProperty(ElementAttribute.prototype, "type", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._type == null) {
       Access.getValueById(TYPE_TABLE, TYPE_COLUMN, local.type_id, function(type) {
         local._type = type;
-        return local._type;
+        callback(local._type);
       });
     } else {
-      return local._type;
+      callback(local._type);
     }
   }
 });
 
 // GET: value
 Object.defineProperty(ElementAttribute.prototype, "value", {
-  get: function() {
+  set: function() {
     var local = this;
     if (local._value == null) {
       Access.getValueById(VALUE_TABLE, VALUE_COLUMN, local.value_id, function(value) {
         local._value = value;
-        return local._value;
+        callback(local._value);
       });
     } else {
-      return local._value;
+      callback(local._value);
     }
   }
 });
 
 // GET: element
 Object.defineProperty(ElementAttribute.prototype, "element", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._element == null) {
       Element.getElementById(local.element_id, function(element) {
         local._element = element;
-        return local._element;
+        callback(local._element);
       });
     } else {
-      return local._element;
+      callback(local._element);
     }
   }
 });

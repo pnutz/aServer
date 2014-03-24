@@ -75,15 +75,15 @@ function insertReceiptAttribute(post, callback) {
 
 // GET: group
 Object.defineProperty(ReceiptAttribute.prototype, "group", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._group == null && local.group_id != null) {
       Access.getValueById(TAG_TABLE, TAG_COLUMN, local.group_id, function(group) {
         local._group = group;
-        return local._group;
+        callback(local._group);
       });
     } else {
-      return local._group;
+      callback(local._group);
     }
   }
 });

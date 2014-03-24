@@ -87,30 +87,30 @@ function updateTemplateDomain(template_id, domain_id, post, callback) {
 
 // GET: domain
 Object.defineProperty(TemplateDomain.prototype, "domain", {
-  get: function() {
+  set: function() {
     var local = this;
     if (local._domain == null) {
       Access.getValueById(DOMAIN_TABLE, DOMAIN_COLUMN, local.domain_id, function(domain) {
         local._domain = domain;
-        return local._domain;
+        callback(local._domain);
       });
     } else {
-      return local._domain;
+      callback(local._domain);
     }
   }
 });
 
 // GET: template
 Object.defineProperty(TemplateDomain.prototype, "template", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._template == null) {
       Template.getTemplateById(local.template_id, function(template) {
         local._template = template;
-        return local._template;
+        callback(local._template);
       });
     } else {
-      return local._template;
+      callback(local._template);
     }
   }
 });

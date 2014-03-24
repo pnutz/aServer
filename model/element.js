@@ -113,46 +113,45 @@ function updateElement(id, post, callback) {
 
 // GET: element
 Object.defineProperty(Element.prototype, "element", {
-  get: function() {
+  set: function(callback) {
     var local = this;
-    debugger;
     if (local._element == null && local.element_id != null) {
       Element.getElementById(local.element_id, function(element) {
         local._element = element;
-        return local._element;
+        callback(local._element);
       });
     } else {
-      return local._element;
+      callback(local._element);
     }
   }
 });
 
 // GET: template
 Object.defineProperty(Element.prototype, "template", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._template == null) {
       Template.getTemplateById(local.template_id, function(template) {
         local._template = template;
-        return local._template;
+        callback(local._template);
       });
     } else {
-      return local._template;
+      callback(local._template);
     }
   }
 });
 
 // GET: tag
 Object.defineProperty(Element.prototype, "tag", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._tag == null) {
       Access.getValueById(TAG_TABLE, TAG_COLUMN, local.tag_id, function(tag) {
         local._tag = tag;
-        return local._tag;
+        callback(local._tag);
       });
     } else {
-      return local._tag;
+      callback(local._tag);
     }
   }
 });

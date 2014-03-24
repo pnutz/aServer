@@ -72,15 +72,15 @@ function insertUrl(post, callback) {
 
 // GET: domain
 Object.defineProperty(Url.prototype, "domain", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._domain == null) {
       Access.getValueById(DOMAIN_TABLE, DOMAIN_COLUMN, local.domain_id, function(domain) {
         local._domain = domain;
-        return local._domain;
+        callback(local._domain);
       });
     } else {
-      return local._domain;
+      callback(local._domain);
     }
   }
 });

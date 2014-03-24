@@ -280,7 +280,7 @@ function saveAttributes(element_id, attributes, func_callback) {
         if (key == "class") {
           attributes[key] = attributes[key].replace(" " + CLASS_NAME, "");
         }
-        if (attributes[key] != "") {
+        if (!isBlank(attributes[key])) {
           var attr = new ElementAttribute(key, attributes[key], element_id);
           attr.save(callback);
         } else {
@@ -378,7 +378,7 @@ function iterate_parent(parentDom, element_id, template_id, level, $, func_callb
         saveAttributes(parent_element_id, parentDom[0].attribs, function() {
           // iterate down to parent children
           iterate_parent_children(parentDom, parent_element_id, parentDom.prevObject[0], element_id, template_id, level, $, function() {
-            console.log("Completed iterate_parent");          
+            console.log("Completed iterate_parent");
             func_callback();
           });
         });

@@ -75,45 +75,45 @@ function updateTemplate(id, post, callback) {
 
 // GET: receipt_attribute
 Object.defineProperty(Template.prototype, "attribute", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._attribute == null) {
       Template.getReceiptAttributeById(local.attribute_id, function(attribute) {
         local._attribute = attribute;
-        return local._attribute;
+        callback(local._attribute);
       });
     } else {
-      return local._attribute;
+      callback(local._attribute);
     }
   }
 });
 
 // GET: url
 Object.defineProperty(Template.prototype, "url", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._url == null) {
       Url.getUrlById(local.url_id, function(url) {
         local._url = url;
-        return local._url;
+        callback(local._url);
       });
     } else {
-      return local._url;
+      callback(local._url);
     }
   }
 });
 
 // GET: text
 Object.defineProperty(Template.prototype, "text", {
-  get: function() {
+  set: function(callback) {
     var local = this;
     if (local._text == null && local.text_id != null) {
       Text.getTextById(local.text_id, function(text) {
         local._text = text;
-        return local._text;
+        callback(local._text);
       });
     } else {
-      return local._text;
+      callback(local._text);
     }
   }
 });

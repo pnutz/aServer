@@ -146,6 +146,23 @@ Object.defineProperty(ElementAttribute.prototype, "element", {
   }
 });
 
+// find attribute_type_id of attribute, check if attr exists for element, find attribute_value
+ElementAttribute.getAttributeByElement = function(attribute, element_id, callback) {
+  Access.getIdByValue(TYPE_TABLE, TYPE_COLUMN, attribute, function(type_id) {
+    if (type_id != null) {
+      Access.selectByColumn("ser_element_attribute", "element_id", element_id, "AND attribute_type_id = " + type_id, function(element_attribute) {
+        if (element_attribute != null) {
+          Access.getValueById(VALUE_TABLE, VALUE_COLUMN, element_attribute[0].attribute_value_id, callback);
+        } else {
+          callback(null);
+        }
+      });
+    } else {
+      callback(null);
+    }
+  });
+};
+
 ElementAttribute.getElementAttributesByElement = function(element_id, callback) {
   Access.selectByColumn("ser_element_attribute", "element_id", element_id, "", function(result) {
     if (result != null) {

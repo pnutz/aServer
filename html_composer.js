@@ -9,8 +9,8 @@ Text = require("./model/text"),
 Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
-exports.readTemplate = function(userID, html, url, domain) {
-  var domain_id, attribute_id, _templates, $;
+exports.readTemplate = function(userID, html, url, domain, json_callback) {
+  var domain_id, attribute, attribute_id, _templates, $, json_message = "{", first_attr = 1;
   
   async.series([
     // load domain
@@ -20,76 +20,103 @@ exports.readTemplate = function(userID, html, url, domain) {
         // found domain
         if (select_domain_id != null) {
           domain_id = select_domain_id;
+          $ = cheerio.load("<body>" + html + "</body>");
+          console.log("Created DOM");
           callback();
         } else {
           callback(new Error("Domain does not exist in DB"));
         }
       });
     },
-    // load attribute
+    // load attribute & build json message for attribute
     function(callback) {
-      // iterate through each receipt attribute - defaulted to date atm
-      //async.each();
-      
-      console.log("----------------LOAD ATTRIBUTE----------------------");
-      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", "date", function(select_attribute_id) {
-        // found attribute
-        if (select_attribute_id != null) {
-          attribute_id = select_attribute_id;
-          callback();
-        } else {
-          callback(new Error("Attribute does not exist in DB"));
-        }
-      });
-    },
-    // load all templates
-    function(callback) {
-      console.log("----------------LOAD TEMPLATES----------------------");
-      TemplateDomain.getTemplatesByDomain(domain_id, function(templates) {
-        // found templates
-        if (templates != null && templates.length > 0) {
-          _templates = templates;
-          $ = cheerio.load("<body>" + html + "</body>");
-          console.log("Created DOM");
+      // "'TRUE'" = "TRUE" to select all rows of ser_receipt_attribute
+      SimpleTable.selectByColumn("ser_receipt_attribute", "'TRUE'", "TRUE", "", function(attributes) {
+        async.eachSeries(attributes, function(attr, each_callback) {
+          attribute = attr.attribute_name;
+          console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
+          attribute_id = attr.id;
           
-          callback();
-        } else {
-          callback(new Error("No templates found for domain"));
-        }
+          if (first_attr == 1) {
+            json_message += '"' + attribute + '": ';
+            first_attr = 0;
+          } else {
+            json_message += ', "' + attribute + '": ';
+          }
+          
+          // calculations for attribute
+          async.series([
+            // load all templates for attribute
+            function(series_callback) {
+              console.log("----------------LOAD TEMPLATES----------------------");
+              TemplateDomain.getTemplatesByDomain(domain_id, attribute_id, function(templates) {
+                // found templates
+                if (templates != null && templates.length > 0) {
+                  _templates = templates;
+                } else {
+                  _templates = null;
+                }
+                series_callback();
+              });
+            },
+            // find text from template (add iteration through templates)
+            function(series_callback) {
+              // assume only 1 template for now
+              if (_templates != null) {
+                processTemplate(_templates[0], $, function(template_result) {
+                  if (template_result != null) {
+                    // return found text to add to message
+                    json_message += '"' + template_result + '"';
+                  } else {
+                    // nothing found
+                    json_message += '""';
+                  }
+                  series_callback();
+                });
+              } else {
+                series_callback();
+              }
+            }
+          ], function(err, result) {
+            if (err) {
+              each_callback(new Error(err.message));
+            } else {
+              each_callback();
+            }
+          });
+        }, function(err) {
+          if (err) {
+            callback(new Error(err.message));
+          } else {
+            callback();
+          }
+        });
       });
-    },
-    // iterate through templates
-    function(func_callback) {
-      // assume only 1 template for now
-      processTemplate(_templates[0], $, func_callback);
-      // detectSeries returns the item 
-      /*async.detectSeries(_templates, function(template, callback) {
-        processTemplate(template, $, callback);
-      }, function(result) {
-        // result is template that returned true
-        func_callback();
-      });*/
     }
   ], function(err, result) {
     if (err) {
       console.log(err.message);
+      json_callback(null);
     } else {
-      console.log("Completed generateTemplate method");
+      json_message += "}";
+      console.log("Completed readTemplate method");
+      json_callback(json_message);
     }
   });
 };
 
-// compares template with $ html dom, returns true if matches
+// compares template with $ html dom, returns value if matches, null if doesn't match
 function processTemplate(template, $, callback) {
-  constructElementPath(template, $, callback);
-  // iterate elements and create path string of elements
-  // 
-  // need to set variable out of scope..
-  //callback(true);
-  //callback(false);
+  constructElementPath(template, $, function(result) {
+    if (result != null) {
+      callback(result);
+    } else {
+      callback(null);
+    }
+  });
 }
 
-// constructs a selector string from the body to the 
+// constructs a selector string from the body to the root element
 function constructElementPath(template, $, func_callback) {
   var element, selector = "body", possible_matches;
   
@@ -108,14 +135,55 @@ function constructElementPath(template, $, func_callback) {
         function() { return element.element_id != null; },
         // whilst loop function
         function(whilst_callback) {
-          element.element = function(element_result) {
-            element = element_result;
-            
-            element.tag = function(tag_result) {
-              selector += ">" + tag_result;
+          async.series([
+            // set element as child element
+            function(series2_callback) {
+              element.element = function(element_result) {
+                element = element_result;
+                series2_callback();
+              };
+            },
+            // add tag to selector
+            function(series2_callback) {
+              element.tag = function(tag_result) {
+                selector += ">" + tag_result;
+                series2_callback();
+              };
+            },
+            // add id if it exists to selector
+            function(series2_callback) {
+              ElementAttribute.getAttributeByElement("id", element.id, function(value) {
+                if (value != null) {
+                  selector += '[id="' + value + '"]';
+                }
+                series2_callback();
+              });
+            },
+            // add name if it exists to selector
+            function(series2_callback) {
+              ElementAttribute.getAttributeByElement("name", element.id, function(value) {
+                if (value != null) {
+                  selector += '[name="' + value + '"]';
+                }
+                series2_callback();
+              });
+            }/*,
+            // add class if it exists to selector -- NEEDS FIXING
+            function(series2_callback) {
+              ElementAttribute.getAttributeByElement("class", element.id, function(value) {
+                if (value != null) {
+                  selector += '.' + value;
+                }
+                series2_callback();
+              });
+            }*/
+          ], function(err, result) {
+            if (err) {
+              whilst_callback(new Error(err.message));
+            } else {
               whilst_callback();
-            };
-          };
+            }
+          });
         },
         function(err) {
           if (err) {
@@ -128,14 +196,20 @@ function constructElementPath(template, $, func_callback) {
     },
     // use selector on dom to get matches
     function(callback) {
-      debugger;
       possible_matches = $(selector);
+      // check if there is a match
+      if (possible_matches.length > 0) {
+        callback(null, possible_matches.text());
+      } else {
+        callback();
+      }
     }
   ], function(err, result) {
     if (err) {
-      func_callback();
+      console.log(err.message);
+      func_callback(null);
     } else {
-      func_callback();
+      func_callback(result[result.length-1]);
     }
   });
 }

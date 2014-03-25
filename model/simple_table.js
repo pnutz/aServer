@@ -9,7 +9,7 @@ function selectByColumn(table, column, id, queryadd, callback) {
       var result = rows;
       callback(result);
     }
-    else if (callback) {
+    else {
       console.log("No rows selected");
       callback(null);
     }

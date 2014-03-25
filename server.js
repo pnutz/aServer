@@ -88,10 +88,13 @@ function start()
           setImmediate(compose.readTemplate(req.params.userID,
                                             req.params.html,
                                             req.params.url,
-                                            req.params.domain));
-          res.header("Content-Type", "text/plain");
-          res.send(200, "Authorization Token Accepted");
-          console.log("Request Completed");
+                                            req.params.domain,
+                                            function(json_message) {
+                                              res.header("Content-Type", "text/plain");
+                                              res.send(200, JSON.stringify(json_message));
+                                              //res.send(200, "Authorization Token Accepted");
+                                              console.log("Request Completed");
+                                            }));
         }
         else // Webapp authentication failed
         {

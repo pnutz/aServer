@@ -115,15 +115,21 @@ Object.defineProperty(TemplateDomain.prototype, "template", {
   }
 });
 
-TemplateDomain.getTemplatesByDomain = function(domain_id, func_callback) {
-  Access.selectByColumn("ser_template_domain", "domain_id", domain_id, "ORDER BY probability_success DESC", function(result) {
-    if (result != null) {
+TemplateDomain.getTemplatesByDomain = function(domain_id, attribute_id, func_callback) {
+  var query = db.query("SELECT * FROM ser_template_domain INNER JOIN ser_template ON ser_template_domain.template_id = ser_template.id " +
+                "WHERE ser_template_domain.domain_id = " + domain_id + " AND ser_template.attribute_id = " + attribute_id +
+                " ORDER BY ser_template_domain.probability_success DESC", function(err, rows) {
+    if (err) throw err;
+    
+    if (rows.length != 0) {
+      var result = rows;
       var templates = [];
       async.eachSeries(result, function(template, callback) {
-        Template.getTemplateById(template.template_id, function(selected_template) {
-          templates.push(selected_template);
-          callback();
-        });
+        var selected_template = new Template(template.id,
+        template.attribute_id, template.url_id,
+        template.text_id, template.user_id);
+        templates.push(selected_template);
+        callback();
       }, function(err) {
         if (err) {
           console.log("getTemplatesByDomain: " + err.message);
@@ -132,10 +138,13 @@ TemplateDomain.getTemplatesByDomain = function(domain_id, func_callback) {
           func_callback(templates);
         }
       });
-    } else {
+    }
+    else {
+      console.log("No rows selected");
       func_callback(null);
     }
   });
+  console.log(query.sql);
 };
 
 module.exports = TemplateDomain;

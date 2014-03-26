@@ -56,6 +56,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                   _templates = templates;
                 } else {
                   _templates = null;
+                  json_message += '""';
                 }
                 series_callback();
               });
@@ -198,7 +199,6 @@ function findTextSelection(template, selection, func_callback) {
       callback();
     }
   ], function(err, result) {
-    debugger;
     if (err && err != true) {
       console.log(err.message);
       func_callback(null);
@@ -278,12 +278,20 @@ function constructElementPath(template, $, func_callback) {
             // select element
             function(series2_callback) {
               selection = selection.children(/*selector*/);
-              series2_callback();
+              if (selection.length == 0) {
+                series2_callback(new Error("selection has no children"));
+              } else {
+                series2_callback();
+              }
             },
             // select order (does not work with tag & attributes)
             function(series2_callback) {
               selection = selection.eq(element.order);
-              series2_callback();
+              if (selection.length == 0) {
+                series2_callback(new Error("order selected does not exist"));
+              } else {
+                series2_callback();
+              }
             },
             // compare with tag for additional accuracy
             function(series2_callback) {

@@ -7,7 +7,8 @@ ElementAttribute = require("./model/element_attribute"),
 ReceiptAttribute = require("./model/receipt_attribute"),
 Text = require("./model/text"),
 Url = require("./model/url"),
-SimpleTable = require("./model/simple_table");
+SimpleTable = require("./model/simple_table"),
+TEXT_ID = "-!|_|!-";
 
 exports.readTemplate = function(userID, html, url, domain, json_callback) {
   var domain_id, attribute, attribute_id, _templates, $, json_message = "{", first_attr = 1;
@@ -31,7 +32,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
     // load attribute & build json message for attribute
     function(callback) {
       // "'TRUE'" = "TRUE" to select all rows of ser_receipt_attribute
-      SimpleTable.selectByColumn("ser_receipt_attribute", "'TRUE'", "TRUE", "", function(attributes) {
+      SimpleTable.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "", function(attributes) {
         async.eachSeries(attributes, function(attr, each_callback) {
           attribute = attr.attribute_name;
           console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
@@ -63,6 +64,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
             function(series_callback) {
               // assume only 1 template for now
               if (_templates != null) {
+                console.log("----------------PROCESS TEMPLATE----------------------");
                 processTemplate(_templates[0], $, function(template_result) {
                   if (template_result != null) {
                     // return found text to add to message
@@ -107,25 +109,121 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
 
 // compares template with $ html dom, returns value if matches, null if doesn't match
 function processTemplate(template, $, callback) {
-  constructElementPath(template, $, function(result) {
-    if (result != null) {
-      callback(result);
+  constructElementPath(template, $, function(selection) {
+    if (selection != null) {
+      // calculate text off of selection
+      console.log();
+      console.log("----------------CALCULATE TEXT----------------------");
+      findTextSelection(template, selection, function(result) {
+        if (result != "") {
+          callback(result);
+        } else {
+          callback(null);
+        }
+      });
     } else {
       callback(null);
     }
   });
 }
 
-// constructs a selector string from the body to the root element
+// forms text from selection that matches template text and returns it (or empty string if it can't be found)
+function findTextSelection(template, selection, func_callback) {
+  var text_node, element, left_text, right_text, element_text, text_result = selection.text().trim();
+
+  async.series([
+    // get root text node from template
+    function(callback) {
+      Text.getTextById(template.text_id, function(err, root_text) {
+        if (err) {
+          callback(new Error("root text not found"));
+        } else {
+          text_node = root_text;
+          callback();
+        }
+      });
+    },
+    // get element from text_node
+    function(callback) {
+      if (text_node.element_id != null) {
+        Element.getElementById(text_node.element_id, function(err, root_element) {
+          if (err) {
+            callback(new Error("root element not found"));
+          } else {
+            element = root_element;
+            callback();
+          }
+        });
+      } else {
+        callback(new Error("text node does not have an element_id"));
+      }
+    },
+    // get left text node if it exists and is under root element
+    function(callback) {
+      text_node.left = function(left_result) {
+        if (left_result != null && left_result.element_id == text_node.element_id) {
+          left_text = left_result;
+        }
+        callback();
+      };
+    },
+    // get right text node if it exists and is under root element
+    function(callback) {
+      text_node.right = function(right_result) {
+        if (right_result != null && right_result.element_id == text_node.element_id) {
+          right_text = right_result;
+        }
+        callback();
+      };    
+    },
+    // calculate left & right text
+    function(callback) {
+      if (left_text != null) {
+        var left_index = text_result.indexOf(left_text.text);
+        if (left_index != -1) {
+          text_result = text_result.substring(left_index + left_text.text.length);
+        } else {
+          text_result = text_result.substring(left_text.text.length);
+        }
+      }
+      if (right_text != null) {
+        var right_index = text_result.indexOf(right_text.text);
+        if (right_index != -1) {
+          text_result = text_result.substring(0, text_result.length - right_index);
+        } else {
+          text_result = text_result.substring(0, text_result.length - right_text.text.length);
+        }
+      }
+      text_result = text_result.trim();
+      callback();
+    }
+  ], function(err, result) {
+    debugger;
+    if (err && err != true) {
+      console.log(err.message);
+      func_callback(null);
+    } else {
+      func_callback(text_result);
+    }
+  });
+  // possible length of text match
+  // if no match, substring based on text (trim, then cut out)
+}
+
+// constructs a dom selection from the body to the root element and returns the root element (or null if it can't be found)
 function constructElementPath(template, $, func_callback) {
-  var element, selector = "body", possible_matches;
+  var element, selector, selection = $("body");
   
   async.series([
     // set element to template body_element
     function(callback) {
-      Element.getBodyElementByTemplate(template.id, function(body_element) {
-        element = body_element;
-        callback();
+      Element.getBodyElementByTemplate(template.id, function(err, body_element) {
+        if (err) {
+          callback(new Error("body element not found"));
+        } else {
+          element = body_element;
+          callback();
+        }
       });
     },
     // construct selector path from body to root element
@@ -144,9 +242,9 @@ function constructElementPath(template, $, func_callback) {
               };
             },
             // add tag to selector
-            function(series2_callback) {
+            /*function(series2_callback) {
               element.tag = function(tag_result) {
-                selector += ">" + tag_result;
+                selector = tag_result;
                 series2_callback();
               };
             },
@@ -167,7 +265,7 @@ function constructElementPath(template, $, func_callback) {
                 }
                 series2_callback();
               });
-            }/*,
+            }*//*,
             // add class if it exists to selector -- NEEDS FIXING
             function(series2_callback) {
               ElementAttribute.getAttributeByElement("class", element.id, function(value) {
@@ -177,6 +275,27 @@ function constructElementPath(template, $, func_callback) {
                 series2_callback();
               });
             }*/
+            // select element
+            function(series2_callback) {
+              selection = selection.children(/*selector*/);
+              series2_callback();
+            },
+            // select order (does not work with tag & attributes)
+            function(series2_callback) {
+              selection = selection.eq(element.order);
+              series2_callback();
+            },
+            // compare with tag for additional accuracy
+            function(series2_callback) {
+              element.tag = function(tag_result) {
+                if (selection[0].name != tag_result) {
+                  // leave whilst loop
+                  element.element_id = null;
+                  selection = null;
+                }
+                series2_callback();
+              };
+            }
           ], function(err, result) {
             if (err) {
               whilst_callback(new Error(err.message));
@@ -194,12 +313,11 @@ function constructElementPath(template, $, func_callback) {
         }
       );
     },
-    // use selector on dom to get matches
+    // calculate on match
     function(callback) {
-      possible_matches = $(selector);
       // check if there is a match
-      if (possible_matches.length > 0) {
-        callback(null, possible_matches.text());
+      if (selection != null && selection.length != 0) {
+        callback(null, selection);
       } else {
         callback();
       }

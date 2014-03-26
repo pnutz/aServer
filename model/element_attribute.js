@@ -136,9 +136,13 @@ Object.defineProperty(ElementAttribute.prototype, "element", {
   set: function(callback) {
     var local = this;
     if (local._element == null) {
-      Element.getElementById(local.element_id, function(element) {
-        local._element = element;
-        callback(local._element);
+      Element.getElementById(local.element_id, function(err, element) {
+        if (err) {
+          callback(null);
+        } else {
+          local._element = element;
+          callback(local._element);
+        }
       });
     } else {
       callback(local._element);

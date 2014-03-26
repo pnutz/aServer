@@ -88,10 +88,9 @@ Object.defineProperty(Url.prototype, "domain", {
 Url.getUrlById = function(id, callback) {
   Access.selectByColumn("ser_url", "id", id, "", function(result) {
     if (result != null) {
-      callback(new Url(result[0].id,
-        result[0].domain_id, result[0].url,
-        result[0].html, result[0].text
-      ));
+      var url = new Url(result[0].id, result[0].domain_id, result[0].url,
+                        result[0].html, result[0].text);
+      callback(null, url);
     } else {
       callback(new Error("No url with ID " + id));
     }

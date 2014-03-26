@@ -2,7 +2,7 @@
 
 // helper function: runs callback on selected rows, null if no rows selected
 function selectByColumn(table, column, id, queryadd, callback) {
-  var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = ? " + queryadd, id, function(err, rows) {
+  var query = db.query("SELECT * FROM " + table + " WHERE " + column + " = " + id + " " + queryadd, function(err, rows) {
     if (err) throw err;
     
     if (rows.length != 0) {

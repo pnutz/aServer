@@ -78,9 +78,13 @@ Object.defineProperty(Template.prototype, "attribute", {
   set: function(callback) {
     var local = this;
     if (local._attribute == null) {
-      Template.getReceiptAttributeById(local.attribute_id, function(attribute) {
-        local._attribute = attribute;
-        callback(local._attribute);
+      ReceiptAttribute.getReceiptAttributeById(local.attribute_id, function(err, attribute) {
+        if (err) {
+          callback(null);
+        } else {
+          local._attribute = attribute;
+          callback(local._attribute);
+        }
       });
     } else {
       callback(local._attribute);
@@ -93,9 +97,13 @@ Object.defineProperty(Template.prototype, "url", {
   set: function(callback) {
     var local = this;
     if (local._url == null) {
-      Url.getUrlById(local.url_id, function(url) {
-        local._url = url;
-        callback(local._url);
+      Url.getUrlById(local.url_id, function(err, url) {
+        if (err) {
+          callback(null);
+        } else {
+          local._url = url;
+          callback(local._url);
+        }
       });
     } else {
       callback(local._url);
@@ -108,9 +116,13 @@ Object.defineProperty(Template.prototype, "text", {
   set: function(callback) {
     var local = this;
     if (local._text == null && local.text_id != null) {
-      Text.getTextById(local.text_id, function(text) {
-        local._text = text;
-        callback(local._text);
+      Text.getTextById(local.text_id, function(err, text) {
+        if (err) {
+          callback(null);
+        } else {
+          local._text = text;
+          callback(local._text);
+        }
       });
     } else {
       callback(local._text);
@@ -125,7 +137,7 @@ Template.getTemplateById = function(id, callback) {
         result[0].attribute_id, result[0].url_id,
         result[0].text_id, result[0].user_id
       );
-      callback(template);
+      callback(null, template);
     } else {
       callback(new Error("No template with ID " + id));
     }

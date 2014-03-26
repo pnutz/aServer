@@ -116,9 +116,13 @@ Object.defineProperty(Element.prototype, "element", {
   set: function(callback) {
     var local = this;
     if (local._element == null && local.element_id != null) {
-      Element.getElementById(local.element_id, function(element) {
-        local._element = element;
-        callback(local._element);
+      Element.getElementById(local.element_id, function(err, element) {
+        if (err) {
+          callback(null);
+        } else {
+          local._element = element;
+          callback(local._element);
+        }
       });
     } else {
       callback(local._element);
@@ -131,9 +135,13 @@ Object.defineProperty(Element.prototype, "template", {
   set: function(callback) {
     var local = this;
     if (local._template == null) {
-      Template.getTemplateById(local.template_id, function(template) {
-        local._template = template;
-        callback(local._template);
+      Template.getTemplateById(local.template_id, function(err, template) {
+        if (err) {
+          callback(null);
+        } else {
+          local._template = template;
+          callback(local._template);
+        }
       });
     } else {
       callback(local._template);
@@ -164,7 +172,7 @@ Element.getElementById = function(id, callback) {
         result[0].tag_id, result[0].relation,
         result[0].level, result[0].html,
         result[0].order);
-      callback(select_element);
+      callback(null, select_element);
     } else {
       callback(new Error("No element with ID " + id));
     }
@@ -179,7 +187,7 @@ Element.getBodyElementByTemplate = function(template_id, callback) {
         result[0].tag_id, result[0].relation,
         result[0].level, result[0].html,
         result[0].order);
-      callback(select_element);
+      callback(null, select_element);
     } else {
       callback(new Error("No body element with template ID " + template_id));
     }

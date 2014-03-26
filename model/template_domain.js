@@ -105,9 +105,13 @@ Object.defineProperty(TemplateDomain.prototype, "template", {
   set: function(callback) {
     var local = this;
     if (local._template == null) {
-      Template.getTemplateById(local.template_id, function(template) {
-        local._template = template;
-        callback(local._template);
+      Template.getTemplateById(local.template_id, function(err, template) {
+        if (err) {
+          callback(null);
+        } else {
+          local._template = template;
+          callback(local._template);
+        }
       });
     } else {
       callback(local._template);

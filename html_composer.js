@@ -7,8 +7,7 @@ ElementAttribute = require("./model/element_attribute"),
 ReceiptAttribute = require("./model/receipt_attribute"),
 Text = require("./model/text"),
 Url = require("./model/url"),
-SimpleTable = require("./model/simple_table"),
-TEXT_ID = "-!|_|!-";
+SimpleTable = require("./model/simple_table");
 
 exports.readTemplate = function(userID, html, url, domain, json_callback) {
   var domain_id, attribute, attribute_id, _templates, $, json_message = "{", first_attr = 1;
@@ -31,8 +30,8 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
     },
     // load attribute & build json message for attribute
     function(callback) {
-      // "'TRUE'" = "TRUE" to select all rows of ser_receipt_attribute
-      SimpleTable.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "", function(attributes) {
+      // select all rows of ser_receipt_attribute that are not grouped
+      ReceiptAttribute.getIndividualReceiptAttributes(function(attributes) {
         async.eachSeries(attributes, function(attr, each_callback) {
           attribute = attr.attribute_name;
           console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
@@ -61,17 +60,25 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                 series_callback();
               });
             },
-            // find text from template (add iteration through templates)
+            // iterate through templates to find text
             function(series_callback) {
-              // assume only 1 template for now
               if (_templates != null) {
-                console.log("----------------PROCESS TEMPLATE----------------------");
-                processTemplate(_templates[0], $, function(template_result) {
-                  if (template_result != null) {
-                    // return found text to add to message
-                    json_message += '"' + template_result + '"';
-                  } else {
-                    // nothing found
+                async.eachSeries(_templates, function(template, each_callback) {
+                  console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
+                  processTemplate(template, $, function(template_result) {
+                    if (template_result != null && template_result != "") {
+                      // return found text to add to message
+                      json_message += '"' + template_result + '"';
+                      each_callback(new Error(true));
+                    } else {
+                      each_callback();
+                    }
+                  });
+                }, function(err) {
+                  if (err && err.message != "true") {
+                    json_message += '""';
+                    console.log(err.message);
+                  } else if (!err) {
                     json_message += '""';
                   }
                   series_callback();
@@ -96,6 +103,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
         });
       });
     }
+    // add processing for grouped attributes
   ], function(err, result) {
     if (err) {
       console.log(err.message);
@@ -110,12 +118,12 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
 
 // compares template with $ html dom, returns value if matches, null if doesn't match
 function processTemplate(template, $, callback) {
-  constructElementPath(template, $, function(selection) {
+  constructElementPath(template.id, $, function(selection) {
     if (selection != null) {
       // calculate text off of selection
       console.log();
       console.log("----------------CALCULATE TEXT----------------------");
-      findTextSelection(template, selection, function(result) {
+      findTextSelection(template.id, selection, function(result) {
         if (result != "") {
           callback(result);
         } else {
@@ -129,13 +137,13 @@ function processTemplate(template, $, callback) {
 }
 
 // forms text from selection that matches template text and returns it (or empty string if it can't be found)
-function findTextSelection(template, selection, func_callback) {
-  var text_node, element, left_text, right_text, element_text, text_result = selection.text().trim();
+function findTextSelection(template_id, selection, func_callback) {
+  var text_node, element, left_text, right_text, element_text, text_result = selection.text().trim().replace(/\n/g, "");;
 
   async.series([
     // get root text node from template
     function(callback) {
-      Text.getTextById(template.text_id, function(err, root_text) {
+      Text.getRootTextByTemplate(template_id, function(err, root_text) {
         if (err) {
           callback(new Error("root text not found"));
         } else {
@@ -190,7 +198,7 @@ function findTextSelection(template, selection, func_callback) {
       if (right_text != null) {
         var right_index = text_result.indexOf(right_text.text);
         if (right_index != -1) {
-          text_result = text_result.substring(0, text_result.length - right_index);
+          text_result = text_result.substring(0, right_index);
         } else {
           text_result = text_result.substring(0, text_result.length - right_text.text.length);
         }
@@ -199,25 +207,23 @@ function findTextSelection(template, selection, func_callback) {
       callback();
     }
   ], function(err, result) {
-    if (err && err != true) {
+    if (err && err.message != "true") {
       console.log(err.message);
       func_callback(null);
     } else {
       func_callback(text_result);
     }
   });
-  // possible length of text match
-  // if no match, substring based on text (trim, then cut out)
 }
 
 // constructs a dom selection from the body to the root element and returns the root element (or null if it can't be found)
-function constructElementPath(template, $, func_callback) {
+function constructElementPath(template_id, $, func_callback) {
   var element, selector, selection = $("body");
   
   async.series([
     // set element to template body_element
     function(callback) {
-      Element.getBodyElementByTemplate(template.id, function(err, body_element) {
+      Element.getBodyElementByTemplate(template_id, function(err, body_element) {
         if (err) {
           callback(new Error("body element not found"));
         } else {

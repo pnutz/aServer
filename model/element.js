@@ -13,8 +13,7 @@ function Element(id, element_id, template_id, tag, relation, level, html, order)
     throw("element: invalid input");
   } else if (relation != "root" && relation != "sibling" && relation != "child" && relation != "parent") {
     throw("element: invalid relation");
-  }
-  
+  }  
   this.id = id;
   
   this.element_id = element_id;
@@ -175,6 +174,21 @@ Element.getElementById = function(id, callback) {
       callback(null, select_element);
     } else {
       callback(new Error("No element with ID " + id));
+    }
+  });
+};
+
+Element.getRootElementByTemplate = function(template_id, callback) {
+  Access.selectByColumn("ser_element", "template_id", template_id, "AND relation = 'root'", function(result) {
+    if (result != null) {
+      var select_element = new Element(result[0].id,
+        result[0].element_id, result[0].template_id,
+        result[0].tag_id, result[0].relation,
+        result[0].level, result[0].html,
+        result[0].order);
+      callback(null, select_element);
+    } else {
+      callback(new Error("No root element with template ID " + template_id));
     }
   });
 };

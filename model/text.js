@@ -173,6 +173,19 @@ Text.getTextById = function(id, callback) {
   });
 };
 
+Text.getRootTextByTemplate = function(template_id, callback) {
+  Access.selectByColumn("ser_text", "template_id", template_id, "AND alignment = 'root'", function(result) {
+    if (result != null) {
+      var text = new Text(result[0].id, result[0].template_id,
+                        result[0].element_id, result[0].text_id,
+                        result[0].alignment, result[0].text);
+      callback(null, text);
+    } else {
+      callback(new Error("No root text node with template ID" + template_id));
+    }
+  });
+};
+
 Text.getTextByAlignment = function(alignment, root_id, callback) {
   Access.selectByColumn("ser_text", "text_id", root_id, "AND alignment = '" + alignment + "'", function(result) {
     if (result != null) {
@@ -181,7 +194,7 @@ Text.getTextByAlignment = function(alignment, root_id, callback) {
                         result[0].alignment, result[0].text);
       callback(null, text);
     } else {
-      callback(new Error("No text with text_id " + id + " and alignment " + alignment));
+      callback(new Error("No text with text ID " + id + " and alignment " + alignment));
     }
   });
 };

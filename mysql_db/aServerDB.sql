@@ -137,11 +137,37 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
+-- Table `aserver`.`ser_template_group`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_group` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `group_id` INT NOT NULL,
+  `domain_id` INT NOT NULL,
+  `probability_success` DECIMAL(5,2) NULL,
+  `variance` DECIMAL(5,2) NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_template_attribute_group_idx` (`group_id` ASC),
+  INDEX `fk_template_group_domain_idx` (`domain_id` ASC),
+  CONSTRAINT `fk_template_attribute_group`
+    FOREIGN KEY (`group_id`)
+    REFERENCES `aserver`.`ser_receipt_attribute_group` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_template_group_domain`
+    FOREIGN KEY (`domain_id`)
+    REFERENCES `aserver`.`ser_domain` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
 -- Table `aserver`.`ser_template`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `attribute_id` INT NOT NULL,
+  `template_group_id` INT NULL,
   `url_id` INT NOT NULL,
   `text_id` INT NULL,
   `user_id` INT NOT NULL,
@@ -150,6 +176,7 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
   INDEX `attribute_id_idx` (`attribute_id` ASC),
   INDEX `url_id_idx` (`url_id` ASC),
   INDEX `fk_template_text_idx` (`text_id` ASC),
+  INDEX `fk_template_group_idx` (`template_group_id` ASC),
   CONSTRAINT `fk_template_receipt_attribute`
     FOREIGN KEY (`attribute_id`)
     REFERENCES `aserver`.`ser_receipt_attribute` (`id`)
@@ -164,6 +191,11 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
     FOREIGN KEY (`text_id`)
     REFERENCES `aserver`.`ser_text` (`id`)
     ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_template_group`
+    FOREIGN KEY (`template_group_id`)
+    REFERENCES `aserver`.`ser_template_group` (`id`)
+    ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
@@ -174,8 +206,8 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_domain` (
   `template_id` INT NOT NULL,
   `domain_id` INT NOT NULL,
-  `probability_success` DECIMAL(5,3) NULL,
-  `variance` DECIMAL(5,3) NULL,
+  `probability_success` DECIMAL(5,2) NULL,
+  `variance` DECIMAL(5,2) NULL,
   PRIMARY KEY (`template_id`, `domain_id`),
   INDEX `fk_domain_idx` (`domain_id` ASC),
   CONSTRAINT `fk_template`

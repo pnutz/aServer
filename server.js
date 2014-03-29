@@ -79,8 +79,11 @@ function start()
   server.post('/load', function test(req, res, next) {
     console.log(req.params.domain + " data received for " + req.params.email);
     // Authorization
-    if (req.params.userID != null && req.params.email != null && req.params.token != null) 
-    {
+    if (req.params.domain == "") {
+        res.send(new Error("Invalid domain"));
+        console.log("Invalid domain");
+        return next();
+    } else if (req.params.userID != null && req.params.email != null && req.params.token != null) {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
         if (result === true)
         {
@@ -93,7 +96,6 @@ function start()
                                               res.header("Content-Type", "text/plain");
                                               console.log(json_message);
                                               res.send(200, json_message);
-                                              //res.send(200, "Authorization Token Accepted");
                                               console.log("Request Completed");
                                             }));
         }

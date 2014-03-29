@@ -5,7 +5,7 @@ TEXT_ID = "-!|_|!-",
 CHILDREN_LIMIT = 2,
 Element = require("./model/element"),
 Template = require("./model/template"),
-template_domain = require("./model/template_domain"),
+TemplateDomain = require("./model/template_domain"),
 ElementAttribute = require("./model/element_attribute"),
 ReceiptAttribute = require("./model/receipt_attribute"),
 Text = require("./model/text"),
@@ -13,7 +13,7 @@ Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
 exports.generateTemplate = function(userID, attribute, selection, element, html, body_text, url, domain) {
-  var url_id, new_url, template_id, new_template, element_dom, element_text,
+  var url_id, new_url, template_id, element_dom, element_text,
   $, element_id, left_text_id, right_text_id, text, parent_element_id, root_order;
   
   async.series([
@@ -36,7 +36,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
         // receipt attribute does not exist
         if (attribute_id != null) {
           console.log("----------------TEMPLATE----------------------");
-          new_template = new Template(null, attribute_id, url_id, null, userID);
+          var new_template = new Template(null, attribute_id, null, url_id, userID);
           new_template.save(function(new_template_id) {
             if (new_template_id != null) {
               template_id = new_template_id;
@@ -53,7 +53,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
     // create template_domain for template & domain
     function(callback) {
       console.log("----------------TEMPLATE DOMAIN----------------------");
-      var new_template_domain = new template_domain(template_id, new_url.domain_id, null, null);
+      var new_template_domain = new TemplateDomain(template_id, new_url.domain_id, null, null);
       new_template_domain.save(callback);
     },
     // parse HTML & create root element
@@ -98,18 +98,12 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
     // save root text
     function(callback) {
       console.log("----------------ROOT TEXT----------------------");
-      var root_text = new Text(null, template_id, element_id, null, "root", text.trim());
+      var root_text = new Text(null, template_id, element_id, null, "root", text.trim().replace(/\n/g, ""));
       root_text.save(function(root_text_id) {
         if (root_text_id != null) {
           left_text_id = root_text_id;
           right_text_id = root_text_id;
-
-          // update template text_id
-          new_template.text_id = root_text_id;
-          new_template.save(function() {
-            console.log("Added text_id to template");
-            callback();
-          });
+          callback();
         } else {
           callback(new Error("failed to create text"));
         }
@@ -124,7 +118,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
         var left = element_text.substring(0, left_index);
         if (!isBlank(left)) {
           console.log("----------------LEFT TEXT----------------------");
-          var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left.trim());
+          var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left.trim().replace(/\n/g, ""));
           left_text_node.save(function (left_text_node_id) {
             if (left_text_node_id != null) {
               left_text_id = left_text_node_id;
@@ -149,7 +143,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
         var right = element_text.substring(right_index + TEXT_ID.length);
         if (!isBlank(right)) {
           console.log("----------------RIGHT TEXT----------------------");
-          var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim());
+          var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
           right_text_node.save(function (right_text_node_id) {
             if (right_text_node_id != null) {
               right_text_id = right_text_node_id;
@@ -469,7 +463,7 @@ function iterateSiblings(direction, order, element_node, element_dom, template_i
   if (element_node.type === "text") {
     // if text node is not blank, create text node for parent
     if (!isBlank(element_node.data)) {
-      var new_text = new Text(null, template_id, parent_element_id, text_id, direction, element_node.data.trim());
+      var new_text = new Text(null, template_id, parent_element_id, text_id, direction, element_node.data.trim().replace(/\n/g, ""));
       new_text.save(function(new_text_id) {
         if (new_text_id != null) {
           iterateSiblings(direction, order, element_node, element_dom, template_id, new_text_id, element_id, parent_element_id, $, func_callback);
@@ -507,7 +501,7 @@ function iterateSiblings(direction, order, element_node, element_dom, template_i
         });
       }, function(callback) {
         if (!isBlank(element_dom.text())) {
-          var new_text = new Text(null, template_id, element_id, text_id, direction, element_dom.text().trim());
+          var new_text = new Text(null, template_id, element_id, text_id, direction, element_dom.text().trim().replace(/\n/g, ""));
           new_text.save(function(new_text_id) {
             if (new_text_id != null) {
               iterateSiblings(direction, order, element_node, element_dom, template_id, new_text_id, element_id, parent_element_id, $, callback);

@@ -130,8 +130,8 @@ TemplateDomain.getTemplatesByDomain = function(domain_id, attribute_id, func_cal
       var templates = [];
       async.eachSeries(result, function(template, callback) {
         var selected_template = new Template(template.id,
-        template.attribute_id, template.url_id,
-        template.text_id, template.user_id);
+                                      template.attribute_id, template.template_group_id, 
+                                      template.url_id, template.text_id, template.user_id);
         templates.push(selected_template);
         callback();
       }, function(err) {

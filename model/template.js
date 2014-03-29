@@ -1,26 +1,25 @@
 // template class
-var id, attribute_id, url_id, text_id, user_id,
-_attribute, _url, _text,
+var id, attribute_id, template_group_id, url_id, user_id,
+_attribute, _url, _text, _element,
 Url = require("./url"),
 Text = require("./text"),
+Element = require("./element"),
 Access = require("./simple_table");
 
 // constructor
-function Template(id, attribute_id, url_id, text_id, user_id) {
+function Template(id, attribute_id, template_group_id, url_id, user_id) {
   if (attribute_id == null || url_id == null || user_id == null) {
     throw("template: invalid input");
-  }
-  
+  }  
   this.id = id;
   
   this.attribute_id = attribute_id;
   this._attribute = null;
   
+  this.template_group_id = template_group_id;
+  
   this.url_id = url_id;
   this._url = null;
-  
-  this.text_id = text_id;
-  this._text = null;
   
   this.user_id = user_id;
 }
@@ -30,8 +29,8 @@ Template.prototype.save = function(callback) {
   var local = this;
   var post = {
     attribute_id: local.attribute_id,
+    template_group_id: local.template_group_id,
     url_id: local.url_id,
-    text_id: local.text_id,
     user_id: local.user_id
   };
   if (local.id == null) {
@@ -115,8 +114,8 @@ Object.defineProperty(Template.prototype, "url", {
 Object.defineProperty(Template.prototype, "text", {
   set: function(callback) {
     var local = this;
-    if (local._text == null && local.text_id != null) {
-      Text.getTextById(local.text_id, function(err, text) {
+    if (local._text == null) {
+      Text.getRootTextByTemplate(local.id, function(err, text) {
         if (err) {
           callback(null);
         } else {
@@ -130,16 +129,60 @@ Object.defineProperty(Template.prototype, "text", {
   }
 });
 
+// GET: element
+Object.defineProperty(Template.prototype, "element", {
+  set: function(callback) {
+    var local = this;
+    if (local._element == null) {
+      Element.getRootElementByTemplate(local.id, function(err, element) {
+        if (err) {
+          callback(null);
+        } else {
+          local._element = element;
+          callback(local._element);
+        }
+      });
+    } else {
+      callback(local._element);
+    }
+  }
+});
+
 Template.getTemplateById = function(id, callback) {
   Access.selectByColumn("ser_template", "id", id, "", function(result) {
     if (result != null) {
       var template = new Template(result[0].id,
-        result[0].attribute_id, result[0].url_id,
-        result[0].text_id, result[0].user_id
+        result[0].attribute_id, result[0].template_group_id,
+        result[0].url_id, result[0].user_id
       );
       callback(null, template);
     } else {
       callback(new Error("No template with ID " + id));
+    }
+  });
+};
+
+Template.getTemplatesByGroup = function(template_group_id, callback) {
+  Access.selectByColumn("ser_template", "template_group_id", template_group_id, "", function(result) {
+    if (result != null) {
+      var templates = [];
+      async.eachSeries(result, function(template, callback) {
+        var selected_template = new Template(template.id,
+                                      template.attribute_id, template.template_group_id,
+                                      template.url_id, template.user_id);
+        templates.push(selected_template);
+        callback();
+      }, function(err) {
+        if (err) {
+          console.log("getTemplatesByGroup: " + err.message);
+          func_callback(null);
+        } else {
+          func_callback(templates);
+        }
+      });
+      callback(null, template);
+    } else {
+      callback(new Error("No rows selected"));
     }
   });
 };

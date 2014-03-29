@@ -99,4 +99,49 @@ ReceiptAttribute.getReceiptAttributeById = function(id, callback) {
   });
 };
 
+ReceiptAttribute.getIndividualReceiptAttributes = function(callback) {
+  Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NULL", function(result) {
+    if (result != null) {
+      var attributes = [];
+      async.eachSeries(result, function(attr, callback) {
+        var selected_attr = new ReceiptAttribute(attr.id, attr.group_id, attr.attribute_name, attr.data_type);
+        attributes.push(selected_attr);
+        callback();
+      }, function(err) {
+        if (err) {
+          console.log("getIndividualReceiptAttributes: " + err.message);
+          func_callback(null);
+        } else {
+          func_callback(attributes);
+        }
+      });
+    } else {
+      callback(new Error("No rows selected"));
+    }
+
+  });
+};
+
+ReceiptAttribute.getGroupedReceiptAttributes = function(callback) {
+  Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NOT NULL", function(result) {
+    if (result != null) {
+      var attributes = [];
+      async.eachSeries(result, function(attr, callback) {
+        var selected_attr = new ReceiptAttribute(attr.id, attr.group_id, attr.attribute_name, attr.data_type);
+        attributes.push(selected_attr);
+        callback();
+      }, function(err) {
+        if (err) {
+          console.log("getGroupedReceiptAttributes: " + err.message);
+          func_callback(null);
+        } else {
+          func_callback(attributes);
+        }
+      });
+    } else {
+      callback(new Error("No rows selected"));
+    }
+  });
+};
+
 module.exports = ReceiptAttribute;

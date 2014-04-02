@@ -173,7 +173,22 @@ Element.getElementById = function(id, callback) {
         result[0].order);
       callback(null, select_element);
     } else {
-      callback(new Error("No element with ID " + id));
+      callback(new Error("No element with id " + id));
+    }
+  });
+};
+
+Element.getParentElementById = function(id, callback) {
+  Access.selectByColumn("ser_element", "element_id", id, "AND relation = 'parent'", function(result) {
+    if (result != null) {
+      var select_element = new Element(result[0].id,
+        result[0].element_id, result[0].template_id,
+        result[0].tag_id, result[0].relation,
+        result[0].level, result[0].html,
+        result[0].order);
+      callback(null, select_element);
+    } else {
+      callback(new Error("No parent element with element_id " + id));
     }
   });
 };
@@ -188,7 +203,7 @@ Element.getRootElementByTemplate = function(template_id, callback) {
         result[0].order);
       callback(null, select_element);
     } else {
-      callback(new Error("No root element with template ID " + template_id));
+      callback(new Error("No root element with template_id " + template_id));
     }
   });
 };
@@ -203,7 +218,7 @@ Element.getBodyElementByTemplate = function(template_id, callback) {
         result[0].order);
       callback(null, select_element);
     } else {
-      callback(new Error("No body element with template ID " + template_id));
+      callback(new Error("No body element with template_id " + template_id));
     }
   });
 };

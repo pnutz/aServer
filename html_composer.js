@@ -33,7 +33,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
       // select all rows of ser_receipt_attribute that are not grouped
       ReceiptAttribute.getIndividualReceiptAttributes(function(attributes) {
         async.eachSeries(attributes, function(attr, each_callback) {
-          attribute = attr.attribute_name;
+          attribute = attr.name;
           console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
           attribute_id = attr.id;
           

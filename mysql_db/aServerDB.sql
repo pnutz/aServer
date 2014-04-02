@@ -61,6 +61,86 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
+-- Table `aserver`.`ser_template_group`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_group` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `group_id` INT NOT NULL,
+  `domain_id` INT NOT NULL,
+  `probability_success` DECIMAL(5,2) NULL,
+  `variance` DECIMAL(5,2) NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_template_attribute_group_idx` (`group_id` ASC),
+  INDEX `fk_template_group_domain_idx` (`domain_id` ASC),
+  CONSTRAINT `fk_template_attribute_group`
+    FOREIGN KEY (`group_id`)
+    REFERENCES `aserver`.`ser_receipt_attribute_group` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_template_group_domain`
+    FOREIGN KEY (`domain_id`)
+    REFERENCES `aserver`.`ser_domain` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `aserver`.`ser_template`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `attribute_id` INT NOT NULL,
+  `template_group_id` INT NULL,
+  `url_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `created_on` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `attribute_id_idx` (`attribute_id` ASC),
+  INDEX `url_id_idx` (`url_id` ASC),
+  INDEX `fk_template_group_idx` (`template_group_id` ASC),
+  CONSTRAINT `fk_template_receipt_attribute`
+    FOREIGN KEY (`attribute_id`)
+    REFERENCES `aserver`.`ser_receipt_attribute` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_template_url`
+    FOREIGN KEY (`url_id`)
+    REFERENCES `aserver`.`ser_url` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_template_group`
+    FOREIGN KEY (`template_group_id`)
+    REFERENCES `aserver`.`ser_template_group` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `aserver`.`ser_template_domain`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_domain` (
+  `template_id` INT NOT NULL,
+  `domain_id` INT NOT NULL,
+  `probability_success` DECIMAL(5,2) NULL,
+  `variance` DECIMAL(5,2) NULL,
+  PRIMARY KEY (`template_id`, `domain_id`),
+  INDEX `fk_domain_idx` (`domain_id` ASC),
+  CONSTRAINT `fk_template`
+    FOREIGN KEY (`template_id`)
+    REFERENCES `aserver`.`ser_template` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_domain`
+    FOREIGN KEY (`domain_id`)
+    REFERENCES `aserver`.`ser_domain` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
 -- Table `aserver`.`ser_html_tag`
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_html_tag` (
@@ -99,125 +179,6 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   CONSTRAINT `fk_element_element`
     FOREIGN KEY (`element_id`)
     REFERENCES `aserver`.`ser_element` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `aserver`.`ser_text`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_text` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `template_id` INT NOT NULL,
-  `element_id` INT NULL,
-  `text_id` INT NULL,
-  `alignment` ENUM('root','left','right') NOT NULL,
-  `text` MEDIUMBLOB NOT NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_text_idx` (`text_id` ASC),
-  INDEX `fk_text_element_idx` (`element_id` ASC),
-  INDEX `fk_text_template_idx` (`template_id` ASC),
-  CONSTRAINT `fk_text`
-    FOREIGN KEY (`text_id`)
-    REFERENCES `aserver`.`ser_text` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_text_element`
-    FOREIGN KEY (`element_id`)
-    REFERENCES `aserver`.`ser_element` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_text_template`
-    FOREIGN KEY (`template_id`)
-    REFERENCES `aserver`.`ser_template` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `aserver`.`ser_template_group`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_group` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `group_id` INT NOT NULL,
-  `domain_id` INT NOT NULL,
-  `probability_success` DECIMAL(5,2) NULL,
-  `variance` DECIMAL(5,2) NULL,
-  PRIMARY KEY (`id`),
-  INDEX `fk_template_attribute_group_idx` (`group_id` ASC),
-  INDEX `fk_template_group_domain_idx` (`domain_id` ASC),
-  CONSTRAINT `fk_template_attribute_group`
-    FOREIGN KEY (`group_id`)
-    REFERENCES `aserver`.`ser_receipt_attribute_group` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_template_group_domain`
-    FOREIGN KEY (`domain_id`)
-    REFERENCES `aserver`.`ser_domain` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `aserver`.`ser_template`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
-  `id` INT NOT NULL AUTO_INCREMENT,
-  `attribute_id` INT NOT NULL,
-  `template_group_id` INT NULL,
-  `url_id` INT NOT NULL,
-  `text_id` INT NULL,
-  `user_id` INT NOT NULL,
-  `created_on` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `attribute_id_idx` (`attribute_id` ASC),
-  INDEX `url_id_idx` (`url_id` ASC),
-  INDEX `fk_template_text_idx` (`text_id` ASC),
-  INDEX `fk_template_group_idx` (`template_group_id` ASC),
-  CONSTRAINT `fk_template_receipt_attribute`
-    FOREIGN KEY (`attribute_id`)
-    REFERENCES `aserver`.`ser_receipt_attribute` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_template_url`
-    FOREIGN KEY (`url_id`)
-    REFERENCES `aserver`.`ser_url` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_template_text`
-    FOREIGN KEY (`text_id`)
-    REFERENCES `aserver`.`ser_text` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_template_group`
-    FOREIGN KEY (`template_group_id`)
-    REFERENCES `aserver`.`ser_template_group` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION)
-ENGINE = InnoDB;
-
-
--- -----------------------------------------------------
--- Table `aserver`.`ser_template_domain`
--- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_domain` (
-  `template_id` INT NOT NULL,
-  `domain_id` INT NOT NULL,
-  `probability_success` DECIMAL(5,2) NULL,
-  `variance` DECIMAL(5,2) NULL,
-  PRIMARY KEY (`template_id`, `domain_id`),
-  INDEX `fk_domain_idx` (`domain_id` ASC),
-  CONSTRAINT `fk_template`
-    FOREIGN KEY (`template_id`)
-    REFERENCES `aserver`.`ser_template` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_domain`
-    FOREIGN KEY (`domain_id`)
-    REFERENCES `aserver`.`ser_domain` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
@@ -266,6 +227,38 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element_attribute` (
   CONSTRAINT `fk_attribute_value`
     FOREIGN KEY (`attribute_value_id`)
     REFERENCES `aserver`.`ser_element_attribute_value` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION)
+ENGINE = InnoDB;
+
+
+-- -----------------------------------------------------
+-- Table `aserver`.`ser_text`
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS `aserver`.`ser_text` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `template_id` INT NOT NULL,
+  `element_id` INT NULL,
+  `text_id` INT NULL,
+  `alignment` ENUM('root','left','right') NOT NULL,
+  `text` MEDIUMBLOB NOT NULL,
+  PRIMARY KEY (`id`),
+  INDEX `fk_text_idx` (`text_id` ASC),
+  INDEX `fk_text_element_idx` (`element_id` ASC),
+  INDEX `fk_text_template_idx` (`template_id` ASC),
+  CONSTRAINT `fk_text`
+    FOREIGN KEY (`text_id`)
+    REFERENCES `aserver`.`ser_text` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_text_element`
+    FOREIGN KEY (`element_id`)
+    REFERENCES `aserver`.`ser_element` (`id`)
+    ON DELETE NO ACTION
+    ON UPDATE NO ACTION,
+  CONSTRAINT `fk_text_template`
+    FOREIGN KEY (`template_id`)
+    REFERENCES `aserver`.`ser_template` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;

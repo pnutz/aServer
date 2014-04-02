@@ -3,6 +3,7 @@ var id, name, datatype, group_id,
 _group,
 GROUP_TABLE = "ser_receipt_attribute_group",
 GROUP_COLUMN = "group_name",
+async = require("async"),
 Access = require("./simple_table");
 
 // constructor
@@ -99,7 +100,7 @@ ReceiptAttribute.getReceiptAttributeById = function(id, callback) {
   });
 };
 
-ReceiptAttribute.getIndividualReceiptAttributes = function(callback) {
+ReceiptAttribute.getIndividualReceiptAttributes = function(func_callback) {
   Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NULL", function(result) {
     if (result != null) {
       var attributes = [];
@@ -116,13 +117,14 @@ ReceiptAttribute.getIndividualReceiptAttributes = function(callback) {
         }
       });
     } else {
-      callback(new Error("No rows selected"));
+      console.log("No rows selected");
+      func_callback(null);
     }
 
   });
 };
 
-ReceiptAttribute.getGroupedReceiptAttributes = function(callback) {
+ReceiptAttribute.getGroupedReceiptAttributes = function(func_callback) {
   Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NOT NULL", function(result) {
     if (result != null) {
       var attributes = [];
@@ -139,7 +141,8 @@ ReceiptAttribute.getGroupedReceiptAttributes = function(callback) {
         }
       });
     } else {
-      callback(new Error("No rows selected"));
+      console.log("No rows selected");
+      func_callback(null);
     }
   });
 };

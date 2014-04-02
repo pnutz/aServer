@@ -6,37 +6,422 @@ CHILDREN_LIMIT = 2,
 Element = require("./model/element"),
 Template = require("./model/template"),
 TemplateDomain = require("./model/template_domain"),
+TemplateGroup = require("./model/template_group"),
 ElementAttribute = require("./model/element_attribute"),
 ReceiptAttribute = require("./model/receipt_attribute"),
 Text = require("./model/text"),
 Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
-exports.generateTemplate = function(userID, attribute, selection, element, html, body_text, url, domain) {
-  var url_id, new_url, template_id, element_dom, element_text,
-  $, element_id, left_text_id, right_text_id, text, parent_element_id, root_order;
+exports.generateTemplates = function(user_id, attribute_data) {
+  var domain, url, new_url, individual_attributes, grouped_attributes, keys, grouped_keys;
+    
+  individual_attributes = attribute_data;
+  grouped_attributes = attribute_data.items;
+  delete individual_attributes.items;
+  
+  if (individual_attributes != null) {
+    keys = Object.keys(individual_attributes);
+  }
+  
+  if (grouped_attributes != null) {
+    grouped_keys = Object.keys(grouped_attributes);
+  }
+  
+  // get attribute common domain
+  if (keys != null && keys.length != 0) {
+    domain = attribute_data[keys[0]].domain;
+    url = attribute_data[keys[0]].url;
+  } else if (grouped_keys != null && grouped_keys.length != 0) {
+    var first_grouped_item = grouped_attributes[grouped_keys[0]];
+    var first_item_keys = Object.keys(first_grouped_item);
+    domain = first_grouped_item[first_item_keys[0]].domain;
+    url = first_grouped_item[first_item_keys[0]].url;
+  } else {
+    console.log("No attribute data sent")
+    return;
+  }
   
   async.series([
-    // create url
+    // create url id
     function(callback) {
       console.log("----------------URL----------------------");
       new_url = new Url(null, domain, url);
       new_url.save(function(new_url_id) {
         if (new_url_id != null) {
-          url_id = new_url_id;
           callback();
         } else {
           callback(new Error("failed to create new url"));
         }
       });
     },
+    // generate templates for each individual attribute
+    function(callback) {
+      if (keys != null) {
+        async.eachSeries(keys,
+        function(key, each_callback) {
+          generateTemplate(user_id, individual_attributes[key].attribute,
+                          individual_attributes[key].selection, individual_attributes[key].element,
+                          individual_attributes[key].html, individual_attributes[key].text,
+                          new_url.id, new_url.domain_id, null, each_callback);
+        },
+        function(err) {
+          if (err) {
+            console.log(err.message);
+          }
+          console.log("Generated templates for individual attributes");
+          callback();
+        });
+      } else {
+        callback();
+      }
+    },
+    // generate templates for each grouped attribute
+    function(callback) {
+      if (grouped_keys != null) {
+        async.eachSeries(grouped_keys,
+        function(key, each_callback) {
+          generateTemplateGroup(user_id, new_url.id, new_url.domain_id, grouped_attributes[key], each_callback);
+        },
+        function(err) {
+          if (err) {
+            console.log(err.message);
+          } else {
+            console.log("Generated templates for grouped attributes");
+          }
+          callback();
+        });
+      } else {
+        callback();
+      }
+    }
+  ], function(err, result) {
+    if (err) {
+      console.log(err.message);
+    } else {
+      console.log("Completed generateTemplates method");
+    }
+  });
+};
+
+function generateTemplateGroup(user_id, url_id, domain_id, attribute_group, template_callback) {
+  var template_group_id, template_elements = [];
+  
+  async.series([
+    // create template group
+    function(callback) {
+      SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", "Receipt Items", function(group_id) {
+        var template_group = new TemplateGroup(null, domain_id, group_id, null, null);
+        template_group.save(function(id) {
+          template_group_id = id;
+          callback();
+        });
+      });
+    },
+    // generate templates for each grouped attribute
+    function(callback) {
+      var attribute_keys = Object.keys(attribute_group);
+      async.eachSeries(attribute_keys,
+      function(key, each_callback) {
+        var attr = attribute_group[key];
+        generateTemplate(user_id, attr.attribute, attr.selection, attr.element, attr.html,
+                          attr.text, url_id, domain_id, template_group_id, each_callback);
+      }, function(err) {
+        if (err) {
+          console.log(err.message);
+        } else {
+          console.log("Ran generateTemplate for each grouped attribute.");
+        }
+        callback();
+      });
+    },
+    // generate (optional) row template for template group
+    function(callback) {
+      generateRowTemplate(user_id, url_id, template_group_id, callback);
+    }
+  ], function(err, result) {
+    if (err) {
+      console.log(err.message);
+    } else {
+      console.log("Completed generateTemplateGroup method");
+    }
+    template_callback();
+  });
+}
+
+function generateRowTemplate(user_id, url_id, template_group_id, template_callback) {
+  var row_attribute_id, templates, template_elements = [], body_element, row_element, element_level, current_element_id, template_id;
+  
+  async.series([
+    // get row attribute id
+    function(callback) {
+      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", "row", function(attribute_id) {
+        // check if row attribute exists
+        if (attribute_id != null) {
+          row_attribute_id = attribute_id;
+          callback();
+        } else {
+          callback(new Error("Row attribute does not exist"));
+        }
+      });
+    },
+    // get grouped templates
+    function(callback) {
+      Template.getTemplatesByGroup(template_group_id, function(selected_templates) {
+        if (selected_templates != null && selected_templates.length > 0) {
+          templates = selected_templates;
+          callback();
+        } else {
+          callback(new Error("Grouped templates do not exist"));
+        }
+      });
+    },
+    // load template body elements into array
+    function(callback) {
+      async.each(templates, function(template, each_callback) {
+        Element.getBodyElementByTemplate(template.id, function(err, element) {
+          if (err == null) {
+            if (body_element == null) {
+              body_element = element;
+            }
+            template_elements.push(element);
+            each_callback();
+          } else {
+            each_callback(err);
+          }
+        });
+      }, function(err) {
+        if (err) {
+          callback(err);
+        } else {
+          callback();
+        }
+      });
+    },
+    // while templates match, keep iterating from body to root element
+    function(callback) {
+      var match = true, order, tag_id;
+      async.whilst(
+        // whilst loop condition - while tag_id & order match all templates and root element is not hit
+        function() { return match; },
+        // whilst loop function
+        function(whilst_callback) {
+          async.series([
+            // set each template element to its child element
+            function(series_callback) {
+              var temp_elements = [];
+              async.each(template_elements, function(template_element, each_callback) {
+                template_element.element = function(element_result) {
+                    temp_elements.push(element_result);
+                    each_callback();
+                  };
+              }, function(err) {
+                if (err) {
+                  series_callback(err);
+                } else {
+                  template_elements = temp_elements;
+                  series_callback();
+                }
+              });
+            },
+            // prepare variables for synchronous whilst test function
+            function(series_callback) {
+              match = true;
+              order = null;
+              tag_id = null;
+              async.eachSeries(template_elements, function(template_element, each_callback) {
+                if (template_element.relation == "root" || template_element.element_id == null) {
+                  match = false;
+                }
+                
+                if (tag_id == null) {
+                  tag_id = template_element.tag_id;
+                  order = template_element.order;
+                } else if (template_element.tag_id != tag_id || template_element.order != order) {
+                  match = false;
+                }
+                each_callback();
+              }, function(err) {
+                if (err) {
+                  series_callback(err);
+                } else {
+                  template_elements[0].tag = function(tag_result) {
+                    // elements matched and tag is a row, store as row_element
+                    if (match == true && (tag_result == "tr" || tag_result == "li" || tag_result == "dl" || tag_result == "dd")) {
+                      row_element = template_elements[0];
+                    }
+                    series_callback();
+                  }
+                }
+              });
+            }
+          ], function(err) {
+            if (err) {
+              whilst_callback(err);
+            } else {
+              whilst_callback();
+            }
+          });
+        },
+        function(err) {
+          if (err) {
+            callback(err);
+          } else {
+            callback();
+          }
+        }
+      );
+    },
+    // create template for row if row_element exists
+    function(callback) {
+      if (row_element != null) {
+        var new_template = new Template(null, row_attribute_id, template_group_id, url_id, user_id);
+        new_template.save(function(new_template_id) {
+          if (new_template_id != null) {
+            template_id = new_template_id;
+            callback();
+          } else {
+            callback(new Error("failed to create new template"));
+          }
+        });
+      } else {
+        callback(new Error("Row element does not exist"));
+      }
+    },
+    // create row element for row template
+    function(callback) {
+      element_level = 0;
+      
+      var new_element = new Element(null, null, template_id, row_element.tag_id, "root", element_level, row_element.html, row_element.order);
+      new_element.save(function(element_id) {
+        if (element_id != null) {
+          current_element_id = element_id;
+          element_level--;
+          
+          ElementAttribute.getElementAttributesByElement(row_element.id, function(attributes) {
+            if (attributes != null) {
+              // iterate through row_element attributes, adding it to new_element
+              async.each(attributes, function(attribute, each_callback) {
+                var element_attribute = new ElementAttribute(attribute.type_id, attribute.value_id, current_element_id);
+                element_attribute.save(each_callback);
+              }, function(err) {
+                if (err) {
+                  callback(err);
+                } else {
+                  callback();
+                }
+              });
+            } else {
+              callback();
+            }
+          });
+        } else {
+          callback(new Error("failed to create body element for row template"));
+        }
+      });
+    },
+    function(callback) {
+      Element.getParentElementById(row_element.id, function(err, parent_element) {
+        if (err == null) {
+          row_element = parent_element;
+          callback();
+        } else {
+          callback(new Error("Completed generateRowTemplate method"));
+        }
+      });
+    },
+    // create elements from body element to row element for row template
+    function(callback) {
+      var parent_exists = true;
+
+      async.whilst(
+        // whilst condition - parent element must exist
+        function() { return parent_exists; },
+        // whilst loop
+        function(whilst_callback) {
+          async.series([
+            // create new element and element attributes for row template
+            function(series_callback) {
+              var new_element = new Element(null, current_element_id, template_id, row_element.tag_id, "parent", element_level, row_element.html, row_element.order);
+              new_element.save(function(element_id) {
+                if (element_id != null) {
+                  current_element_id = element_id;
+                  element_level--;
+                  
+                  ElementAttribute.getElementAttributesByElement(row_element.id, function(attributes) {
+                    if (attributes != null) {
+                      // iterate through row_element attributes, adding it to new_element
+                      async.each(attributes, function(attribute, each_callback) {
+                        var element_attribute = new ElementAttribute(attribute.type_id, attribute.value_id, current_element_id);
+                        element_attribute.save(each_callback);
+                      }, function(err) {
+                        if (err) {
+                          series_callback(err);
+                        } else {
+                          series_callback();
+                        }
+                      });
+                    } else {
+                      series_callback();
+                    }
+                  });
+                } else {
+                  series_callback(new Error("failed to create element for row template"));
+                }
+              });
+            },
+            // set row element to its parent element
+            function(series_callback) {
+              Element.getParentElementById(row_element.id, function(err, parent_element) {
+                if (err == null) {
+                  row_element = parent_element;
+                  parent_exists = true;
+                } else {
+                  parent_exists = false;
+                }
+                series_callback();
+              });
+            }
+          ], function(err) {
+            if (err) {
+              whilst_callback(err);
+            } else {
+              whilst_callback();
+            }
+          });
+        },
+        function(err) {
+          if (err) {
+            callback(err);
+          } else {
+            console.log("Finished adding row elements for row template");
+            callback();
+          }
+        }
+      );
+    }
+  ], function(err, result) {
+    if (err) {
+      console.log(err.message);
+    } else {
+      console.log("Completed generateRowTemplate method");
+    }
+    template_callback();
+  });
+}
+
+function generateTemplate(user_id, attribute, selection, element, html, body_text, url_id, domain_id, group_id, template_callback) {
+  var template_id, element_dom, element_text,
+  $, element_id, left_text_id, right_text_id, text, parent_element_id, root_order;
+  
+  async.series([
     // create template for receipt attribute
     function(callback) {
       SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", attribute, function(attribute_id) {
         // receipt attribute does not exist
         if (attribute_id != null) {
           console.log("----------------TEMPLATE----------------------");
-          var new_template = new Template(null, attribute_id, null, url_id, userID);
+          var new_template = new Template(null, attribute_id, group_id, url_id, user_id);
           new_template.save(function(new_template_id) {
             if (new_template_id != null) {
               template_id = new_template_id;
@@ -52,9 +437,13 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
     },
     // create template_domain for template & domain
     function(callback) {
-      console.log("----------------TEMPLATE DOMAIN----------------------");
-      var new_template_domain = new TemplateDomain(template_id, new_url.domain_id, null, null);
-      new_template_domain.save(callback);
+      if (group_id == null) {
+        console.log("----------------TEMPLATE DOMAIN----------------------");
+        var new_template_domain = new TemplateDomain(template_id, domain_id, null, null);
+        new_template_domain.save(callback);
+      } else {
+        callback();
+      }
     },
     // parse HTML & create root element
     function(callback) {
@@ -67,6 +456,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
       if (element_dom.length == 0) {
         element_dom = $.root();
         tag = "body";
+        element = "<body>" + element + "</body>";
       } else {
         tag = element_dom[0].name;
       }
@@ -175,7 +565,7 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
           html = $.html(parent_dom);
         }
         console.log("----------------PARENT ELEMENT----------------------");
-        var parent_element = new Element(null, element_id, template_id, tag, "parent", -1, $.html(parent_dom), null);
+        var parent_element = new Element(null, element_id, template_id, tag, "parent", -1, html, null);
         parent_element.save(function(new_parent_element_id) {
           if (new_parent_element_id != null) {
             parent_element_id = new_parent_element_id;
@@ -275,8 +665,9 @@ exports.generateTemplate = function(userID, attribute, selection, element, html,
     } else {
       console.log("Completed generateTemplate method");
     }
+    template_callback();
   });
-};
+}
 
 // for each attribute, create ElementAttribute
 function saveAttributes(element_id, attributes, func_callback) {
@@ -328,7 +719,7 @@ function iterateChildren(level_limit, parent_dom, parent_element_id, template_id
       });
     }, function(err) {
       if (err) {
-        func_callback(new Error(err.message));
+        func_callback(err);
       } else {
         console.log("Added child elements of level " + level);
         func_callback();
@@ -363,7 +754,7 @@ function iterateParent(parent_dom, element_id, template_id, level, $, func_callb
             }
           ], function(err, result) {
             if (err) {
-              func_callback(new Error(err.message));
+              func_callback(err);
             } else {
               console.log("Completed iterateParent");
               func_callback();

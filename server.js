@@ -39,22 +39,17 @@ function start()
 
   // Posting template data
   server.post('/template', function test(req, res, next) {
-    console.log(req.params.attribute + " data received for " + req.params.email);
+    console.log("Data received for " + req.params.email);
     // Authorization
     if (req.params.userID != null && req.params.email != null && req.params.token != null) 
     {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
-        if (result === true) 
+        if (result === true)
         {
+          var attribute_data = JSON.parse(req.params.attributes);
+          
           // send http request to WebApp
-          setImmediate(parse.generateTemplate(req.params.userID, 
-                                              req.params.attribute, 
-                                              req.params.selection, 
-                                              req.params.element, 
-                                              req.params.html, 
-                                              req.params.text, 
-                                              req.params.url, 
-                                              req.params.domain));
+          setImmediate(parse.generateTemplates(req.params.userID, attribute_data));
           res.header("Content-Type", "text/plain");
           res.send(200, "Authorization Token Accepted");
           console.log("Request Completed");

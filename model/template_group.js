@@ -49,7 +49,7 @@ TemplateGroup.prototype.save = function(callback) {
   else {
     var post = {
       domain_id: local.domain_id,
-      group_id: local.group_id
+      group_id: local.group_id,
       probability_success: local.probability_success,
       variance: local.variance
     };
@@ -63,10 +63,11 @@ function insertTemplateGroup(post, callback) {
       db.rollback(function() {
         throw err;
       });
+      callback(null);
     } else {
       console.log("Inserted into ser_template_domain");
+      callback(result.insertId);
     }
-    callback();
   });
   console.log(query.sql);
 }

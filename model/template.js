@@ -1,6 +1,7 @@
 // template class
 var id, attribute_id, template_group_id, url_id, user_id,
 _attribute, _url, _text, _element,
+async = require("async"),
 Url = require("./url"),
 Text = require("./text"),
 Element = require("./element"),
@@ -162,7 +163,7 @@ Template.getTemplateById = function(id, callback) {
   });
 };
 
-Template.getTemplatesByGroup = function(template_group_id, callback) {
+Template.getTemplatesByGroup = function(template_group_id, func_callback) {
   Access.selectByColumn("ser_template", "template_group_id", template_group_id, "", function(result) {
     if (result != null) {
       var templates = [];
@@ -180,9 +181,9 @@ Template.getTemplatesByGroup = function(template_group_id, callback) {
           func_callback(templates);
         }
       });
-      callback(null, template);
     } else {
-      callback(new Error("No rows selected"));
+      console.log("No rows selected");
+      func_callback(null);
     }
   });
 };

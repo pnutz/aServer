@@ -5,6 +5,7 @@ TYPE_TABLE = "ser_element_attribute_type",
 TYPE_COLUMN = "attribute_type",
 VALUE_TABLE = "ser_element_attribute_value",
 VALUE_COLUMN = "attribute_value",
+async = require("async"),
 Element = require("./element"),
 Access = require("./simple_table");
 
@@ -167,15 +168,26 @@ ElementAttribute.getAttributeByElement = function(attribute, element_id, callbac
   });
 };
 
-ElementAttribute.getElementAttributesByElement = function(element_id, callback) {
+ElementAttribute.getElementAttributesByElement = function(element_id, func_callback) {
   Access.selectByColumn("ser_element_attribute", "element_id", element_id, "", function(result) {
     if (result != null) {
-      // foreach
-      /*callback(new ElementAttribute(
-        result.id, result.attribute_type_id, result.attribute_value_id, result.element_id
-      ));*/
+      var attributes = [];
+      async.eachSeries(result, function(attribute, callback) {
+        var selected_attribute = new ElementAttribute(attribute.attribute_type_id,
+                                                    attribute.attribute_value_id, attribute.element_id);
+        attributes.push(selected_attribute);
+        callback();
+      }, function(err) {
+        if (err) {
+          console.log("getElementAttributesByElement: " + err.message);
+          func_callback(null);
+        } else {
+          func_callback(attributes);
+        }
+      });
     } else {
-      callback(null);
+      console.log("No attributes selected");
+      func_callback(null);
     }
   });
 };

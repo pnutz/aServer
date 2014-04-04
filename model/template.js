@@ -182,7 +182,7 @@ Template.getTemplatesByGroup = function(template_group_id, func_callback) {
         }
       });
     } else {
-      console.log("No rows selected");
+      console.log("No templates selected");
       func_callback(null);
     }
   });

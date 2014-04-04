@@ -101,7 +101,7 @@ Object.defineProperty(TemplateGroup.prototype, "domain", {
   }
 });
 
-TemplateGroup.getGroupsByDomain = function(group_id, domain_id, func_callback) {
+TemplateGroup.getTemplateGroupsByDomain = function(group_id, domain_id, func_callback) {
   Access.selectByColumn("ser_template_group", "group_id", group_id, "AND domain_id = " + domain_id + " ORDER BY probability_success DESC",
     function(result) {
       if (result != null) {
@@ -119,7 +119,8 @@ TemplateGroup.getGroupsByDomain = function(group_id, domain_id, func_callback) {
           }
         });
       } else {
-        callback(new Error("No rows selected"));
+        console.log("No template_groups selected");
+        func_callback(null);
       }
     }
   );

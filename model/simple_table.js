@@ -6,8 +6,7 @@ function selectByColumn(table, column, id, queryadd, callback) {
     if (err) throw err;
     
     if (rows.length != 0) {
-      var result = rows;
-      callback(result);
+      callback(rows);
     }
     else {
       console.log("No rows selected");

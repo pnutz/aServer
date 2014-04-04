@@ -117,15 +117,15 @@ ReceiptAttribute.getIndividualReceiptAttributes = function(func_callback) {
         }
       });
     } else {
-      console.log("No rows selected");
+      console.log("No attributes selected");
       func_callback(null);
     }
 
   });
 };
 
-ReceiptAttribute.getGroupedReceiptAttributes = function(func_callback) {
-  Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NOT NULL", function(result) {
+ReceiptAttribute.getGroupedReceiptAttributes = function(group_id, func_callback) {
+  Access.selectByColumn("ser_receipt_attribute", "group_id", group_id, "", function(result) {
     if (result != null) {
       var attributes = [];
       async.eachSeries(result, function(attr, callback) {
@@ -141,7 +141,7 @@ ReceiptAttribute.getGroupedReceiptAttributes = function(func_callback) {
         }
       });
     } else {
-      console.log("No rows selected");
+      console.log("No attributes selected");
       func_callback(null);
     }
   });

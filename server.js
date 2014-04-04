@@ -90,7 +90,7 @@ function start()
                                             function(json_message) {
                                               res.header("Content-Type", "text/plain");
                                               console.log(json_message);
-                                              res.send(200, json_message);
+                                              res.send(200, JSON.stringify(json_message));
                                               console.log("Request Completed");
                                             }));
         }

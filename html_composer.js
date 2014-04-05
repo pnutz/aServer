@@ -223,12 +223,66 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               }
             });
           },
-          // remove duplicate results
+          // remove duplicate results and attach results to json_message
           function(series_callback) {
-            // loop through template_groups in items for each unique row
+            var formatted_items = {};
+            var keys = Object.keys(items);
+            // grouped attribute keys, except row attribute
+            var attribute_keys = Object.keys(grouped_attributes);
+            attribute_keys.splice(attribute_keys.indexOf(row_attribute_id),1);
             
-            json_message[items] = items;
-            series_callback();
+            // loop through each template_group
+            async.eachSeries(keys, function(key, each_callback) {
+              var row_keys = Object.keys(items[key]);
+              // loop through each row in item
+              async.eachSeries(row_keys, function(row_key, each_callback2) {
+                // row already exists, compare with selected row
+                if (formatted_items.hasOwnProperty(row_key)) {
+                  // loop through each attribute to compare individual results
+                  async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
+                    var attr = grouped_attributes[attribute_key];
+                    // attribute already exists for row
+                    if (formatted_items[row_key].hasOwnProperty(attr) && items[key][row_key].hasOwnProperty(attr)) {
+                      compareAttributeResults(formatted_items[row_key][attr], items[key][row_key][attr], function(replace_attr) {
+                        if (replace_attr) {
+                          formatted_items[row_key][attr] = items[key][row_key][attr];
+                        }
+                        each_callback3();
+                      });
+                    }
+                    // attribute does not exist for row, but exists for current template group
+                    else {
+                      if (items[key][row_key].hasOwnProperty(attr)) {
+                        formatted_items[row_key][attr] = items[key][row_key][attr];
+                      }
+                      each_callback3();
+                    }
+                  }, function(err) {
+                    if (err) {
+                      console.log(err.message);
+                    }
+                    each_callback2();
+                  });
+                }
+                // row does not exist, add row
+                else {
+                  formatted_items[row_key] = items[key][row_key];
+                  each_callback2();
+                }
+              }, function(err) {
+                if (err) {
+                  console.log(err.message);
+                }
+                each_callback();
+              });
+            }, function(err) {
+              if (err) {
+                console.log(err.message);
+              }
+              // set json_message items
+              json_message["items"] = formatted_items;
+              series_callback();
+            });
           }
         ], function(err, results) {
           if (err) {
@@ -628,4 +682,18 @@ function processGroupedTemplates(templates, $, row_attribute_id, grouped_attribu
       callback(json_results);
     }
   });
+}
+
+// compares two values and returns true if the new value should replace the original value
+function compareAttributeResults(original_value, new_value, callback) {
+  // for text, original value contains new value and new value is more specific
+  if (typeof(original_value) == "string" && original_value.indexOf(new_value) != -1 && new_value.length < original_value.length) {
+    callback(true);
+  }
+  // for numbers, new value contains original value and new value is more detailed
+  else if (new_value.indexOf(original_value) != -1 && new_value.length > original_value.length) {
+    callback(true);
+  } else {
+    callback(false);
+  }
 }

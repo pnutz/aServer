@@ -2,7 +2,7 @@ var cheerio = require("cheerio"),
 async = require("async"),
 CLASS_NAME = "TwoReceipt",
 TEXT_ID = "-!|_|!-",
-CHILDREN_LIMIT = 2,
+CHILDREN_LIMIT = 0,
 Element = require("./model/element"),
 Template = require("./model/template"),
 TemplateDomain = require("./model/template_domain"),
@@ -291,7 +291,6 @@ function generateRowTemplate(user_id, url_id, template_group_id, template_callba
     // create row element for row template
     function(callback) {
       element_level = 0;
-      
       var new_element = new Element(null, null, template_id, row_element.tag_id, "root", element_level, row_element.html, row_element.order);
       new_element.save(function(element_id) {
         if (element_id != null) {

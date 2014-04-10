@@ -330,7 +330,6 @@ function processTemplate(template, $, match_class, body_element_id, callback) {
 // forms text from selection that matches template text and returns it (or empty string if it can't be found)
 function findTextSelection(template_id, selection, func_callback) {
   var text_node, element, left_text, right_text, element_text, text_result = selection.text().trim().replace(/\n/g, "");;
-
   console.log("----------------CALCULATE TEXT----------------------");
   async.series([
     // get root text node from template
@@ -362,7 +361,7 @@ function findTextSelection(template_id, selection, func_callback) {
     // get left text node if it exists and is under root element
     function(callback) {
       text_node.left = function(left_result) {
-        if (left_result != null && left_result.element_id == text_node.element_id) {
+        if (left_result != null/* && left_result.element_id == text_node.element_id*/) {
           left_text = left_result;
         }
         callback();
@@ -371,7 +370,7 @@ function findTextSelection(template_id, selection, func_callback) {
     // get right text node if it exists and is under root element
     function(callback) {
       text_node.right = function(right_result) {
-        if (right_result != null && right_result.element_id == text_node.element_id) {
+        if (right_result != null/* && right_result.element_id == text_node.element_id*/) {
           right_text = right_result;
         }
         callback();
@@ -383,16 +382,12 @@ function findTextSelection(template_id, selection, func_callback) {
         var left_index = text_result.indexOf(left_text.text);
         if (left_index != -1) {
           text_result = text_result.substring(left_index + left_text.text.length);
-        } else {
-          text_result = text_result.substring(left_text.text.length);
         }
       }
       if (right_text != null) {
         var right_index = text_result.indexOf(right_text.text);
         if (right_index != -1) {
           text_result = text_result.substring(0, right_index);
-        } else {
-          text_result = text_result.substring(0, text_result.length - right_text.text.length);
         }
       }
       text_result = text_result.trim();
@@ -411,13 +406,13 @@ function findTextSelection(template_id, selection, func_callback) {
 // constructs a dom selection from the body (or body_element_id) to the root element and returns the root element (or null if it can't be found)
 // callback also returns element_id of optional match_class.  if match_class is found while constructing path, element_id will be returned
 function constructElementPath(template_id, $, match_class, body_element_id, func_callback) {
-  var element, selector, selection = $("body"), element_id;
-  
+  var element, selector, selection, element_id;
   console.log("----------------CONSTRUCT ELEMENT PATH----------------------");
   async.series([
     // set element to template body_element
     function(callback) {
       if (body_element_id == null) {
+        selection = $("body");
         Element.getBodyElementByTemplate(template_id, function(err, body_element) {
           if (err) {
             callback(new Error("body element not found"));
@@ -431,6 +426,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
           if (err) {
             callback(new Error("body element not found"));
           } else {
+            selection = $("." + match_class);
             element = body_element;
             callback();
           }
@@ -515,7 +511,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
             },
             // check if (optional) match_class 
             function(series2_callback) {
-              if (match_class != null && selection.attr("class") != null && selection.attr("class").indexOf(match_class) != -1) {
+              if (match_class != null && body_element_id == null && selection.attr("class") != null && selection.attr("class").indexOf(match_class) != -1) {
                 console.log("Set element_id from element path");
                 element_id = element.id;
               }
@@ -548,6 +544,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
       }
     }
   ], function(err, result) {
+    debugger;
     if (err) {
       console.log(err.message);
       func_callback(null);
@@ -640,7 +637,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, grouped_attribu
           async.eachSeries(templates, function(template, each_callback2) {
             if (template.attribute_id != row_attribute_id) {
               // different function
-              processTemplate(template, $, null, row_element_id[template.id], function(template_result) {
+              processTemplate(template, $, row_class, row_element_id[template.id], function(template_result) {
                 // match found, store element_id for template and json results (can be empty string)
                 if (template_result != null) {
                   if (json_results[table_row_id] == null) {

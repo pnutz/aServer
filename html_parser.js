@@ -411,7 +411,8 @@ function generateRowTemplate(user_id, url_id, template_group_id, template_callba
 
 function generateTemplate(user_id, attribute, selection, element, html, body_text, url_id, domain_id, group_id, template_callback) {
   var template_id, element_dom, element_text,
-  $, element_id, left_text_id, right_text_id, text, parent_element_id, root_order;
+  $, element_id, left_text_id, right_text_id, text, parent_element_id, root_order,
+  first_text_child, second_text_child, child_elements = {}, element_indices = {};
   
   async.series([
     // create template for receipt attribute
@@ -474,6 +475,8 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
       root_element.save(function(root_element_id) {
         if (root_element_id != null) {
           element_id = root_element_id;
+          first_element_child = root_element_id;
+          second_element_child = root_element_id;
           callback();
         } else {
           callback(new Error("failed to create root element"));
@@ -498,52 +501,270 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
         }
       });
     },
-    // check if left text node is within element text (if TEXT_ID exists)
+    // find child node indices that contain left and right TEXT_ID and create child elements
     function(callback) {
-      var left_index = element_text.indexOf(TEXT_ID);
-      var right_index = element_text.indexOf(TEXT_ID, left_index + 1);
-      // leftText is in root_element
-      if (left_index != -1 && left_index != 0) {
-        var left = element_text.substring(0, left_index);
-        if (!isBlank(left)) {
-          console.log("----------------LEFT TEXT----------------------");
-          var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left.trim().replace(/\n/g, ""));
-          left_text_node.save(function (left_text_node_id) {
-            if (left_text_node_id != null) {
-              left_text_id = left_text_node_id;
-              callback();
+      var child_index = 0, element_index = 0;
+      async.eachSeries(element_dom[0].children, function(child, each_callback) {
+        if (child.type === "text") {
+          var text_index = child.data.indexOf(TEXT_ID);
+          
+          if (text_index != -1 && first_text_child == null) {
+            first_text_child = child_index;
+            
+            async.series([
+              // left text in text node
+              function(series_callback) {
+                var left = child.data.substring(0, text_index);
+                if (text_index != 0 && !isBlank(left)) {
+                  console.log("----------------LEFT NODE TEXT----------------------");
+                  var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left.trim().replace(/\n/g, ""));
+                  left_text_node.save(function (left_text_node_id) {
+                    if (left_text_node_id != null) {
+                      left_text_id = left_text_node_id;
+                      series_callback();
+                    } else {
+                      series_callback(new Error("failed to create left text of element"));
+                    }
+                  });
+                } else {
+                  series_callback();
+                }
+              },
+              // right text in text node
+              function(series_callback) {
+                var second_text_index = child.data.indexOf(TEXT_ID, text_index + 1);
+                if (second_text_index != -1 && second_text_child == null) {
+                  second_text_child = child_index;
+                  
+                  var right = child.data.substring(second_text_index + TEXT_ID.length);
+                  if (second_text_index != child.data.length - TEXT_ID.length && !isBlank(right)) {
+                    console.log("----------------RIGHT NODE TEXT----------------------");
+                    var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
+                    right_text_node.save(function (right_text_node_id) {
+                      if (right_text_node_id != null) {
+                        right_text_id = right_text_node_id;
+                        series_callback();
+                      } else {
+                        series_callback(new Error("failed to create right text of element"));
+                      }
+                    });
+                  } else {
+                    series_callback();
+                  }
+                } else {
+                  series_callback();
+                }
+              }
+            ], function(err, result) {
+              if (err) {
+                console.log(err.message);
+              }
+              child_index++;
+              each_callback();
+            });
+          }
+          // right text in text node
+          else if (text_index != -1 && second_text_child == null) {
+            second_text_child = child_index;
+            child_index++;
+            
+            var right = child.data.substring(text_index + TEXT_ID.length);
+            if (text_index != child.data.length - TEXT_ID.length && !isBlank(right)) {
+              console.log("----------------RIGHT NODE TEXT----------------------");
+              var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
+              right_text_node.save(function (right_text_node_id) {
+                if (right_text_node_id != null) {
+                  right_text_id = right_text_node_id;
+                  each_callback();
+                } else {
+                  each_callback(new Error("failed to create right text of element"));
+                }
+              });
             } else {
-              callback(new Error("failed to create left text of element"));
+              each_callback();
             }
+          } else {
+            child_index++;
+            each_callback();
+          }
+        } else if (child.type === "tag") {
+          var child_element = element_dom.children(element_index);
+          var child_element_text = child_element.text();
+          var text_index = child_element_text.indexOf(TEXT_ID);
+          
+          // create child element
+          var new_element = new Element(null, element_id, template_id, child_element[0].name, "child", 1, $.html(child_element), element_index);
+          new_element.save(function(child_element_id) {
+            child_elements[child_index] = child_element_id;
+            element_indices[child_index] = element_index;
+            async.series([
+              function(series_callback) {
+                saveAttributes(child_element_id, child_element[0].attribs, series_callback);
+              },
+              // left or right text is in element node
+              function(series_callback) {
+                // left text in element node
+                if (text_index != -1 && first_text_child == null) {
+                  first_text_child = child_index;
+                  
+                  var left = child_element_text.substring(0, text_index);
+                  if (text_index != 0 && !isBlank(left)) {
+                    console.log("----------------LEFT ELEMENT TEXT----------------------");
+                    var left_text_node = new Text(null, template_id, child_element_id, left_text_id, "left", left.trim().replace(/\n/g, ""));
+                    left_text_node.save(function (left_text_node_id) {
+                      if (left_text_node_id != null) {
+                        left_text_id = left_text_node_id;
+                        series_callback();
+                      } else {
+                        series_callback(new Error("failed to create left text of element"));
+                      }
+                    });
+                  } else {
+                    series_callback();
+                  }
+                }
+                // right text in element node
+                else if (text_index != -1 && second_text_child == null) {
+                  second_text_child = child_index;
+                  
+                  var right = child_element_text.substring(text_index + TEXT_ID.length);
+                  if (text_index != child_element_text.length - TEXT_ID.length && !isBlank(right)) {
+                    console.log("----------------RIGHT ELEMENT TEXT----------------------");
+                    var right_text_node = new Text(null, template_id, child_element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
+                    right_text_node.save(function (right_text_node_id) {
+                      if (right_text_node_id != null) {
+                        right_text_id = right_text_node_id;
+                        series_callback();
+                      } else {
+                        series_callback(new Error("failed to create right text of element"));
+                      }
+                    });
+                  } else {
+                    series_callback();
+                  }
+                } else {
+                  series_callback();
+                }
+              },
+              // create children elements
+              function(series_callback) {
+                iterateChildren(CHILDREN_LIMIT, child_element, child_element_id, template_id, 1, $, series_callback);
+              }
+            ], function(err, result) {
+              if (err) {
+                console.log(err.message);
+              }
+              element_index++;
+              child_index++;
+              each_callback();
+            });
           });
+        }
+        // unknown node type
+        else {
+          child_index++;
+          each_callback();
+        }
+      }, function(err) {
+        if (err) {
+          callback(err);
         } else {
           callback();
         }
+      });
+    },
+    // iterate through left elements from first_text_child index
+    function(callback) {
+      if (first_text_child != null) {
+        var first_child = element_dom[0].children[first_text_child];
+        async.whilst(function () { return first_child.prev != null; },
+        function (whilst_callback) {
+          first_text_child--;
+          first_child = first_child.prev;
+          console.log("----------------CHILD LEFT TEXT----------------------");
+          if (first_child.type === "text" && !isBlank(first_child.data)) {
+            var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", first_child.data.trim().replace(/\n/g, ""));
+            left_text_node.save(function (left_text_node_id) {
+              if (left_text_node_id != null) {
+                left_text_id = left_text_node_id;
+                whilst_callback();
+              } else {
+                whilst_callback(new Error("failed to create left text of element"));
+              }
+            });
+          } else if (first_child.type === "tag") {
+            var child_element_id = child_elements[first_text_child];
+            var child_element = element_dom.children(element_indices[first_text_child]);
+            if (child_element != null && !isBlank(child_element.text())) {
+              var left_text_node = new Text(null, template_id, child_element_id, left_text_id, "left", child_element.text().trim().replace(/\n/g, ""));
+              left_text_node.save(function (left_text_node_id) {
+                if (left_text_node_id != null) {
+                  left_text_id = left_text_node_id;
+                  whilst_callback();
+                } else {
+                  whilst_callback(new Error("failed to create left text of element"));
+                }
+              });
+            } else {
+              whilst_callback();
+            }
+          } else {
+            whilst_callback();
+          }
+        }, function (err) {
+          if (err) {
+            console.log(err.message);
+          }
+          callback();
+        });
       } else {
         callback();
       }
     },
-    // check if right text node is within element text (if TEXT_ID exists)
+    // iterate through right elements from second_text_child index
     function(callback) {
-      var left_index = element_text.indexOf(TEXT_ID);
-      var right_index = element_text.indexOf(TEXT_ID, left_index + 1);
-      // rightText is in root_element
-      if (left_index != -1 && right_index != element_text.length - TEXT_ID.length) {
-        var right = element_text.substring(right_index + TEXT_ID.length);
-        if (!isBlank(right)) {
-          console.log("----------------RIGHT TEXT----------------------");
-          var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
-          right_text_node.save(function (right_text_node_id) {
-            if (right_text_node_id != null) {
-              right_text_id = right_text_node_id;
-              callback();
+      if (second_text_child != null) {
+        var second_child = element_dom[0].children[second_text_child];
+        async.whilst(function () { return second_child.next != null; },
+        function (whilst_callback) {
+          second_text_child++;
+          second_child = second_child.next;
+          console.log("----------------CHILD RIGHT TEXT----------------------");
+          if (second_child.type === "text" && !isBlank(second_child.data)) {
+            var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", second_child.data.trim().replace(/\n/g, ""));
+            right_text_node.save(function (right_text_node_id) {
+              if (right_text_node_id != null) {
+                right_text_id = right_text_node_id;
+                whilst_callback();
+              } else {
+                whilst_callback(new Error("failed to create left text of element"));
+              }
+            });
+          } else if (second_child.type === "tag") {
+            var child_element_id = child_elements[second_text_child];
+            var child_element = element_dom.children(element_indices[second_text_child]);
+            if (child_element != null && !isBlank(child_element.text())) {
+              var right_text_node = new Text(null, template_id, child_element_id, right_text_id, "right", child_element.text().trim().replace(/\n/g, ""));
+              right_text_node.save(function (right_text_node_id) {
+                if (right_text_node_id != null) {
+                  right_text_id = right_text_node_id;
+                  whilst_callback();
+                } else {
+                  whilst_callback(new Error("failed to create right text of element"));
+                }
+              });
             } else {
-              callback(new Error("failed to create right text of element"));
+              whilst_callback();
             }
-          });
-        } else {
+          } else {
+            whilst_callback();
+          }
+        }, function (err) {
+          if (err) {
+            console.log(err.message);
+          }
           callback();
-        }
+        });
       } else {
         callback();
       }
@@ -618,7 +839,7 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
           }
         }, function(err) {
           if (err) {
-            func_callback(err.message);
+            func_callback(err);
           } else {
             console.log("Found order of root node " + root_order);
           }
@@ -643,11 +864,6 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
       } else {
         callback();
       }
-    },
-    // calculate all children elements
-    function(callback) {
-      console.log("----------------CHILD ELEMENTS----------------------");
-      iterateChildren(CHILDREN_LIMIT, element_dom, element_id, template_id, 0, $, callback);
     },
     // calculate all parent elements
     function(callback) {
@@ -820,7 +1036,7 @@ function iterateParentChildren(parent_dom, parent_element_id, child_node, child_
       }
     }, function(err) {
       if (err) {
-        func_callback(err.message);
+        func_callback(err);
       } else {
         console.log("Added child elements of level " + level);
         func_callback();
@@ -905,7 +1121,7 @@ function iterateSiblings(direction, order, element_node, element_dom, template_i
       }
     ], function(err, result) {
       if (err) {
-        func_callback(err.message);
+        func_callback(err);
       } else {
         console.log("Completed iterateSiblings " + direction + " method for element node");
         func_callback();

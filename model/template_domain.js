@@ -1,6 +1,5 @@
 // template_domain class
 var template_id, domain_id, probability_success, variance,
-_template, _domain,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
 async = require("async"),
@@ -15,7 +14,6 @@ function TemplateDomain(template_id, domain, probability, variance) {
   }
 
   this.template_id = template_id;
-  this._template = null;
   
   if (typeof domain == "number") {
     this.domain_id = domain;
@@ -96,25 +94,6 @@ Object.defineProperty(TemplateDomain.prototype, "domain", {
       });
     } else {
       callback(local._domain);
-    }
-  }
-});
-
-// GET: template
-Object.defineProperty(TemplateDomain.prototype, "template", {
-  set: function(callback) {
-    var local = this;
-    if (local._template == null) {
-      Template.getTemplateById(local.template_id, function(err, template) {
-        if (err) {
-          callback(null);
-        } else {
-          local._template = template;
-          callback(local._template);
-        }
-      });
-    } else {
-      callback(local._template);
     }
   }
 });

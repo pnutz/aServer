@@ -1,12 +1,11 @@
 // element_attribute class
 var type_id, value_id, element_id,
-_type, _value, _element,
+_type, _value,
 TYPE_TABLE = "ser_element_attribute_type",
 TYPE_COLUMN = "attribute_type",
 VALUE_TABLE = "ser_element_attribute_value",
 VALUE_COLUMN = "attribute_value",
 async = require("async"),
-Element = require("./element"),
 Access = require("./simple_table");
 
 // constructor
@@ -33,7 +32,6 @@ function ElementAttribute(type, value, element_id) {
   }
 
   this.element_id = element_id;
-  this._element = null;
 }
 
 // save to db
@@ -128,25 +126,6 @@ Object.defineProperty(ElementAttribute.prototype, "value", {
       });
     } else {
       callback(local._value);
-    }
-  }
-});
-
-// GET: element
-Object.defineProperty(ElementAttribute.prototype, "element", {
-  set: function(callback) {
-    var local = this;
-    if (local._element == null) {
-      Element.getElementById(local.element_id, function(err, element) {
-        if (err) {
-          callback(null);
-        } else {
-          local._element = element;
-          callback(local._element);
-        }
-      });
-    } else {
-      callback(local._element);
     }
   }
 });

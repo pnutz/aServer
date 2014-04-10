@@ -1,9 +1,8 @@
 // element class
 var id, template_id, element_id, relation, level, tag_id, html, order,
-_template, _element, _tag,
+_element, _tag,
 TAG_TABLE = "ser_html_tag",
 TAG_COLUMN = "tag_name",
-Template = require("./template"),
 Access = require("./simple_table");
 
 // constructor
@@ -20,7 +19,6 @@ function Element(id, element_id, template_id, tag, relation, level, html, order)
   this._element = null;
 
   this.template_id = template_id;
-  this._template = null;
   
   if (typeof tag == "number") {
     this.tag_id = tag;
@@ -125,25 +123,6 @@ Object.defineProperty(Element.prototype, "element", {
       });
     } else {
       callback(local._element);
-    }
-  }
-});
-
-// GET: template
-Object.defineProperty(Element.prototype, "template", {
-  set: function(callback) {
-    var local = this;
-    if (local._template == null) {
-      Template.getTemplateById(local.template_id, function(err, template) {
-        if (err) {
-          callback(null);
-        } else {
-          local._template = template;
-          callback(local._template);
-        }
-      });
-    } else {
-      callback(local._template);
     }
   }
 });

@@ -1,9 +1,9 @@
 // text class
 var id, template_id, element_id, text_id, alignment, text, left_text_id, right_text_id,
-_template, _element, _text, _left, _right,
-Element = require("./element"),
-Template = require("./template"),
-Access = require("./simple_table");
+_text, _left, _right,
+Access = require("./simple_table"),
+Entities = require("html-entities").AllHtmlEntities,
+entities = new Entities();
 
 // constructor
 function Text(id, template_id, element_id, text_id, alignment, text) {
@@ -15,10 +15,8 @@ function Text(id, template_id, element_id, text_id, alignment, text) {
   this.id = id;
   
   this.template_id = template_id;
-  this._template = null;
   
   this.element_id = element_id;
-  this._element = null;
   
   this.text_id = text_id;
   this._text = null;
@@ -58,44 +56,6 @@ function insertText(post, callback) {
   });
   console.log(query.sql);
 }
-
-// GET: template
-Object.defineProperty(Text.prototype, "template", {
-  set: function(callback) {
-    var local = this;
-    if (local._template == null) {
-      Template.getTemplateById(local.template_id, function(err, template) {
-        if (err) {
-          callback(null);
-        } else {
-          local._template = template;
-          callback(local._template);
-        }
-      });
-    } else {
-      callback(local._template);
-    }
-  }
-});
-
-// GET: element
-Object.defineProperty(Text.prototype, "element", {
-  set: function(callback) {
-    var local = this;
-    if (local._element == null && local.element_id != null) {
-      Element.getElementById(local.element_id, function(err, element) {
-        if (err) {
-          callback(null);
-        } else {
-          local._element = element;
-          callback(local._element);
-        }
-      });
-    } else {
-      callback(local._element);
-    }
-  }
-});
 
 // GET: text
 Object.defineProperty(Text.prototype, "sibling", {
@@ -161,42 +121,53 @@ Object.defineProperty(Text.prototype, "right", {
 });
 
 Text.getTextById = function(id, callback) {
-  Access.selectByColumn("ser_text", "id", id, "", function(result) {
-    if (result != null) {
-      var text = new Text(result[0].id, result[0].template_id,
-                        result[0].element_id, result[0].text_id,
-                        result[0].alignment, result[0].text);
+  var query = db.query("SELECT *, CONVERT(text USING utf8) AS string_text FROM ser_text WHERE id = " + id, function(err, rows) {
+    if (err) throw err;
+    
+    if (rows.length != 0) {
+      var text = new Text(rows[0].id, rows[0].template_id,
+                              rows[0].element_id, rows[0].text_id,
+                              rows[0].alignment, entities.decode(rows[0].string_text));
       callback(null, text);
     } else {
       callback(new Error("No text with ID " + id));
     }
   });
+  console.log(query.sql);
 };
 
 Text.getRootTextByTemplate = function(template_id, callback) {
-  Access.selectByColumn("ser_text", "template_id", template_id, "AND alignment = 'root'", function(result) {
-    if (result != null) {
-      var text = new Text(result[0].id, result[0].template_id,
-                        result[0].element_id, result[0].text_id,
-                        result[0].alignment, result[0].text);
+  var query = db.query("SELECT *, CONVERT(text USING utf8) AS string_text FROM ser_text WHERE " +
+                          "alignment = 'root' AND template_id = " + template_id, function(err, rows) {
+    if (err) throw err;
+    
+    if (rows.length != 0) {
+      var text = new Text(rows[0].id, rows[0].template_id,
+                              rows[0].element_id, rows[0].text_id,
+                              rows[0].alignment, entities.decode(rows[0].string_text));
       callback(null, text);
     } else {
-      callback(new Error("No root text node with template ID" + template_id));
+      callback(new Error("No text with template ID " + template_id));
     }
   });
+  console.log(query.sql);
 };
 
 Text.getTextByAlignment = function(alignment, root_id, callback) {
-  Access.selectByColumn("ser_text", "text_id", root_id, "AND alignment = '" + alignment + "'", function(result) {
-    if (result != null) {
-      var text = new Text(result[0].id, result[0].template_id,
-                        result[0].element_id, result[0].text_id,
-                        result[0].alignment, result[0].text);
+  var query = db.query("SELECT *, CONVERT(text USING utf8) AS string_text FROM ser_text WHERE " +
+                          "text_id = " + root_id + " AND alignment = '" + alignment + "'", function(err, rows) {
+    if (err) throw err;
+    
+    if (rows.length != 0) {
+      var text = new Text(rows[0].id, rows[0].template_id,
+                              rows[0].element_id, rows[0].text_id,
+                              rows[0].alignment, entities.decode(rows[0].string_text));
       callback(null, text);
     } else {
-      callback(new Error("No text with text ID " + id + " and alignment " + alignment));
+      callback(new Error("No text with text ID " + root_id + " and alignment " + alignment));
     }
   });
+  console.log(query.sql);
 };
 
 module.exports = Text;

@@ -4,8 +4,7 @@ _domain,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
 async = require("async"),
-Access = require("./simple_table"),
-Template = require("./template");
+Access = require("./simple_table");
 
 // constructor
 // domain can be either domain_id or domain

@@ -361,23 +361,38 @@ function findTextSelection(template_id, selection, func_callback) {
     // get left text node if it exists and is under root element
     function(callback) {
       text_node.left = function(left_result) {
-        if (left_result != null/* && left_result.element_id == text_node.element_id*/) {
-          left_text = left_result;
+        if (left_result != null) {
+          Element.getElementById(left_result.element_id, function(err, left_element) {
+            // left_result element cannot be a sibling
+            if (left_element != null && left_element.relation != "sibling") {
+              left_text = left_result;
+            }
+            callback();
+          });
+        } else {
+          callback();
         }
-        callback();
       };
     },
     // get right text node if it exists and is under root element
     function(callback) {
       text_node.right = function(right_result) {
-        if (right_result != null/* && right_result.element_id == text_node.element_id*/) {
-          right_text = right_result;
+        if (right_result != null) {
+          Element.getElementById(right_result.element_id, function(err, right_element) {
+            // right_result element cannot be a sibling
+            if (right_element != null && right_element.relation != "sibling") {
+              right_text = right_result;
+            }
+            callback();
+          });
+        } else {
+          callback();
         }
-        callback();
       };    
     },
     // calculate left & right text
     function(callback) {
+      debugger;
       if (left_text != null) {
         var left_index = text_result.indexOf(left_text.text);
         if (left_index != -1) {
@@ -544,7 +559,6 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
       }
     }
   ], function(err, result) {
-    debugger;
     if (err) {
       console.log(err.message);
       func_callback(null);

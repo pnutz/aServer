@@ -7,6 +7,7 @@ restify = require("restify");
 auth = require("./routes/auth"),
 parse = require("./html_parser"),
 compose = require("./html_composer"),
+layer = require("./calculation_layer"),
 // TODO: Change origin to contain chrome extension full url (once ID is set)
 originString = "chrome-extension://",
 request_count = 0;
@@ -88,10 +89,14 @@ function start()
                                             req.params.url,
                                             req.params.domain,
                                             function(json_message) {
-                                              res.header("Content-Type", "text/plain");
                                               console.log(json_message);
-                                              res.send(200, JSON.stringify(json_message));
-                                              console.log("Request Completed");
+                                              // 2nd layer calculations
+                                              layer.applyCalculations(json_message, function(altered_message) {
+                                                res.header("Content-Type", "text/plain");
+                                                console.log(altered_message);
+                                                res.send(200, JSON.stringify(altered_message));
+                                                console.log("Request Completed");
+                                              });
                                             }));
         }
         else // Webapp authentication failed

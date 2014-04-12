@@ -329,7 +329,8 @@ function processTemplate(template, $, match_class, body_element_id, callback) {
 
 // forms text from selection that matches template text and returns it (or empty string if it can't be found)
 function findTextSelection(template_id, selection, func_callback) {
-  var text_node, element, left_text, right_text, element_text, text_result = selection.text().trim().replace(/\n/g, "");;
+  var text_node, element, left_text, right_text, element_text,
+  text_result = selection.text().trim().replace(/\n/g, ""), negative = false, left_index, right_index;
   console.log("----------------CALCULATE TEXT----------------------");
   async.series([
     // get root text node from template
@@ -390,22 +391,83 @@ function findTextSelection(template_id, selection, func_callback) {
         }
       };    
     },
+    // calculation for money values to find negatives
+    function(callback) {
+      var negative_count = 0, negative_index;
+      if (left_text != null) {
+        left_index = text_result.indexOf(left_text.text);
+        if (left_index != -1) {
+          async.series([
+            // find how many negative signs exist in left_text
+            function(series_callback) {
+              negative_index = left_text.text.indexOf("-");
+              async.whilst(function() { return negative_index != -1; },
+                function(whilst_callback) {
+                  negative_count++;
+                  negative_index = left_text.text.indexOf("-", negative_index + 1);
+                  whilst_callback();
+                },
+                function(err) {
+                  if (err) {
+                    console.log(err.message);
+                  }
+                  series_callback();
+                }
+              );
+            },
+            // find how many negative signs exist in the text left of end result
+            function(series_callback) {
+              var left_text_result = text_result.substring(0, left_index + left_text.text.length);
+              negative_index = left_text_result.indexOf("-");
+              async.whilst(function() { return negative_index != -1; },
+                function(whilst_callback) {
+                  negative_count--;
+                  negative_index = left_text_result.indexOf("-", negative_index + 1);
+                  whilst_callback();
+                },
+                function(err) {
+                  if (err) {
+                    console.log(err.message);
+                  }
+                  series_callback();
+                }
+              );
+            },
+          ], function(err, result) {
+            if (err) {
+              console.log(err.message);
+            }
+            if (negative_count < 0) {
+              negative = true;
+            }
+            callback();
+          });
+        } else {
+          callback();
+        }
+      } else {
+        callback();
+      }
+    },
     // calculate left & right text
     function(callback) {
-      debugger;
-      if (left_text != null) {
-        var left_index = text_result.indexOf(left_text.text);
-        if (left_index != -1) {
-          text_result = text_result.substring(left_index + left_text.text.length);
-        }
+      if (left_index != null && left_index != -1) {
+        text_result = text_result.substring(left_index + left_text.text.length);
       }
-      if (right_text != null) {
-        var right_index = text_result.indexOf(right_text.text);
+      if (right_index != null) {
+        right_index = text_result.indexOf(right_text.text);
         if (right_index != -1) {
           text_result = text_result.substring(0, right_index);
         }
       }
       text_result = text_result.trim();
+      
+      // check if result is a number before applying negative
+      if (!isNaN(parseInt(text_result)) && negative) {
+        debugger;
+        text_result = "-" + text_result;
+      }
+      
       callback();
     }
   ], function(err, result) {

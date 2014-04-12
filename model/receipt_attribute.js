@@ -100,6 +100,17 @@ ReceiptAttribute.getReceiptAttributeById = function(id, callback) {
   });
 };
 
+ReceiptAttribute.getReceiptAttributeByName = function(name, callback) {
+  Access.selectByColumn("ser_receipt_attribute", "attribute_name", "'" + name + "'", "", function(result) {
+    if (result != null) {
+      var receipt_attr = new ReceiptAttribute(result[0].id, result[0].group_id, result[0].attribute_name, result[0].data_type);
+      callback(null, receipt_attr);
+    } else {
+      callback(new Error("No Receipt Attribute for ID " + id));
+    }
+  });
+};
+
 ReceiptAttribute.getIndividualReceiptAttributes = function(func_callback) {
   Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NULL", function(result) {
     if (result != null) {

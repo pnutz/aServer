@@ -464,7 +464,6 @@ function findTextSelection(template_id, selection, func_callback) {
       
       // check if result is a number before applying negative
       if (!isNaN(parseInt(text_result)) && negative) {
-        debugger;
         text_result = "-" + text_result;
       }
       

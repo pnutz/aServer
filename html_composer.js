@@ -11,8 +11,9 @@ Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
 exports.readTemplate = function(userID, html, url, domain, json_callback) {
-  var domain_id, attribute, attribute_id, _templates, $, json_message = {}, items = {},
-  row_attribute_id, attribute_groups;
+  var domain_id, attribute, attribute_id, _templates, $, items = {},
+  row_attribute_id, attribute_groups,
+  json_message = { date: "", vendor: "", transaction: "", items: {} };
   
   async.series([
     // load domain
@@ -301,11 +302,10 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
   ], function(err, result) {
     if (err) {
       console.log(err.message);
-      json_callback(null);
     } else {
       console.log("Completed readTemplate method");
-      json_callback(json_message);
     }
+    json_callback(json_message);
   });
 };
 

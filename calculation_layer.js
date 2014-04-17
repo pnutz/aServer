@@ -12,7 +12,7 @@ exports.applyCalculations = function(json_message, html, callback) {
     // find default value for all independent receipt attributes
     function(series_callback) {
       async.eachSeries(keys, function(key, each_callback) {
-        if (key != "items") {
+        if (key != "items" && key != "templates") {
           ReceiptAttribute.getReceiptAttributeByName(key, function(err, attribute) {
             if (err) {
               console.log(err.message);
@@ -22,7 +22,7 @@ exports.applyCalculations = function(json_message, html, callback) {
               async.series([
                 // find default value if no result was found
                 function(series_callback2) {
-                  if (json_message[key] == "" || key == "date") {
+                  if (json_message[key] == "") {
                     findDefaultValue(key, $.root().text(), function(result) {
                       json_message[key] = result;
                       series_callback2();
@@ -131,6 +131,7 @@ exports.applyCalculations = function(json_message, html, callback) {
       async.eachSeries(items_to_delete, function(delete_key, each_callback3) {
         if (json_message.items[delete_key] != null) {
           delete json_message.items[delete_key];
+          delete json_message.templates.items[delete_key];
         }
         each_callback3();
       }, function(err) {
@@ -214,7 +215,6 @@ function convertDateTime(result, callback) {
   } else {
     callback("");
   }
-  callback(result);
 }
 
 function convertString(result, callback) {
@@ -424,7 +424,7 @@ function findDefaultDate(text, callback) {
         } else {
           date_string += "/" + day + "/" + current_date.getFullYear();
         }
-        
+
         series_callback();
       });
     }
@@ -433,7 +433,6 @@ function findDefaultDate(text, callback) {
     if (err) {
       console.log(err.message);
     }
-    debugger;
     callback(date_string);
   });
 }
@@ -454,14 +453,23 @@ function findDefaultItemName(text, callback) {
 }
 
 function findDefaultItemCost(text, callback) {
-  callback("");
+  callback("0.00");
 }
 
 function findDefaultItemQuantity(text, callback) {
   callback("1");
 }
 
-// largest monetary value?
+// largest non-negative monetary value
 function findDefaultTotal(text, callback) {
-  callback("");
+  // Rs. 584, Rs. 618.45, $354.34
+  // 
+  
+  // look for $ symbols, etc. we don't know if $ is the currency used, but if it appears, then it is
+  // ignore numbers that are too long. plain numbers don't work, transaction#, e-mail, date, number in item description, quantity
+  // 
+  
+  // numbers, separated by spaces
+  text = text.replace(/[^0-9.$\-]/g, " ").replace(/\s+/g, " ").replace(/[$]\s+/g, "$").replace(/[-]\s+/g, "-").trim();
+  callback("0.00");
 }

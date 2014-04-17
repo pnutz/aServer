@@ -48,6 +48,7 @@ function start()
         if (result === true)
         {
           var attribute_data = JSON.parse(req.params.attributes);
+          var generated_data = JSON.parse(req.params.generated);
           
           // send http request to WebApp
           setImmediate(parse.generateTemplates(req.params.userID, attribute_data));

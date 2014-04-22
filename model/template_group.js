@@ -1,5 +1,5 @@
 // template_group class
-var id, domain_id, group_id, probability_success, variance,
+var id, domain_id, group_id, probability_success, variance, correct_count, total_count,
 _domain,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
@@ -8,7 +8,7 @@ Access = require("./simple_table");
 
 // constructor
 // domain can be either domain_id or domain
-function TemplateGroup(id, domain, group_id, probability, variance) {
+function TemplateGroup(id, domain, group_id, probability, variance, correct_count, total_count) {
   if (domain == null || group_id == null) {
     throw("template_group: invalid input");
   }
@@ -26,6 +26,8 @@ function TemplateGroup(id, domain, group_id, probability, variance) {
   this.group_id = group_id;
   this.probability_success = probability;
   this.variance = variance;
+  this.correct_count = correct_count;
+  this.total_count = total_count;
 }
 
 // save to db
@@ -39,7 +41,9 @@ TemplateGroup.prototype.save = function(callback) {
         domain_id: local.domain_id,
         group_id: local.group_id,
         probability_success: local.probability_success,
-        variance: local.variance
+        variance: local.variance,
+        correct_count: local.correct_count,
+        total_count: local.total_count
       };
       insertTemplateGroup(post, callback);
     });
@@ -50,7 +54,9 @@ TemplateGroup.prototype.save = function(callback) {
       domain_id: local.domain_id,
       group_id: local.group_id,
       probability_success: local.probability_success,
-      variance: local.variance
+      variance: local.variance,
+      correct_count: local.correct_count,
+      total_count: local.total_count
     };
     insertTemplateGroup(post, callback);
   }
@@ -64,7 +70,7 @@ function insertTemplateGroup(post, callback) {
       });
       callback(null);
     } else {
-      console.log("Inserted into ser_template_domain");
+      console.log("Inserted into ser_template_group");
       callback(result.insertId);
     }
   });
@@ -78,7 +84,7 @@ function updateTemplateGroup(id, post, callback) {
         throw err;
       });
     } else {
-      console.log("Updated ser_template_domain");
+      console.log("Updated ser_template_group");
     }
     callback();
   });

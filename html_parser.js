@@ -15,7 +15,7 @@ SimpleTable = require("./model/simple_table");
 
 exports.generateTemplates = function(user_id, attribute_data) {
   var domain, url, new_url, individual_attributes, grouped_attributes, keys, grouped_keys;
-    
+
   individual_attributes = attribute_data;
   grouped_attributes = attribute_data.items;
   delete individual_attributes.items;
@@ -437,13 +437,9 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
     },
     // create template_domain for template & domain
     function(callback) {
-      if (group_id == null) {
-        console.log("----------------TEMPLATE DOMAIN----------------------");
-        var new_template_domain = new TemplateDomain(template_id, domain_id, null, null);
-        new_template_domain.save(callback);
-      } else {
-        callback();
-      }
+      console.log("----------------TEMPLATE DOMAIN----------------------");
+      var new_template_domain = new TemplateDomain(template_id, domain_id, 100, null, 1, 1);
+      new_template_domain.save(callback);
     },
     // parse HTML & create root element
     function(callback) {

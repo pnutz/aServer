@@ -8,6 +8,7 @@ auth = require("./routes/auth"),
 parse = require("./html_parser"),
 compose = require("./html_composer"),
 layer = require("./calculation_layer"),
+probability = require("./probability"),
 // TODO: Change origin to contain chrome extension full url (once ID is set)
 originString = "chrome-extension://",
 request_count = 0;
@@ -49,6 +50,8 @@ function start()
         {
           var attribute_data = JSON.parse(req.params.attributes);
           var generated_data = JSON.parse(req.params.generated);
+          var saved_data = JSON.parse(req.params.saved_data);
+          setImmediate(probability.compareGeneratedSavedData(req.params.domain, generated_data, saved_data));
           
           // send http request to WebApp
           setImmediate(parse.generateTemplates(req.params.userID, attribute_data));

@@ -72,7 +72,9 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         json_message.templates[attribute] = template.id;
                         each_callback(new Error(true));
                       } else {
-                        each_callback();
+                        template.total_count++;
+                        template.probability_success = template.correct_count / template.total_count;
+                        template.save(each_callback);
                       }
                     });
                   }, function(err) {
@@ -699,10 +701,12 @@ function processGroupedTemplates(templates, $, row_attribute_id, grouped_attribu
               json_results[table_row_id][grouped_attributes[template.attribute_id]] = template_result;
               json_templates[table_row_id][grouped_attributes[template.attribute_id]] = template.id;
               row_element_id[template.id] = element_id;
+              
               each_callback();
             }
             // no match is found, stop calculating with template
             else {
+              
               each_callback(new Error("Initial template did not return results"));
             }
           });

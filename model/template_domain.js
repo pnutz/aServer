@@ -1,5 +1,5 @@
 // template_domain class
-var template_id, domain_id, probability_success, variance,
+var template_id, domain_id, probability_success, variance, correct_count, total_count,
 DOMAIN_TABLE = "ser_domain",
 DOMAIN_COLUMN = "domain_name",
 async = require("async"),
@@ -8,7 +8,7 @@ Template = require("./template");
 
 // constructor
 // domain can be either domain_id or domain
-function TemplateDomain(template_id, domain, probability, variance) {
+function TemplateDomain(template_id, domain, probability, variance, correct_count, total_count) {
   if (template_id == null || domain == null) {
     throw("template_domain: invalid input");
   }
@@ -25,6 +25,8 @@ function TemplateDomain(template_id, domain, probability, variance) {
   
   this.probability_success = probability;
   this.variance = variance;
+  this.correct_count = correct_count;
+  this.total_count = total_count;
 }
 
 // save to db
@@ -38,7 +40,9 @@ TemplateDomain.prototype.save = function(callback) {
         template_id: local.template_id,
         domain_id: local.domain_id,
         probability_success: local.probability_success,
-        variance: local.variance
+        variance: local.variance,
+        correct_count: local.correct_count,
+        total_count: local.total_count
       };
       insertTemplateDomain(post, callback);
     });
@@ -49,7 +53,9 @@ TemplateDomain.prototype.save = function(callback) {
       template_id: local.template_id,
       domain_id: local.domain_id,
       probability_success: local.probability_success,
-      variance: local.variance
+      variance: local.variance,
+      correct_count: local.correct_count,
+      total_count: local.total_count
     };
     insertTemplateDomain(post, callback);
   }
@@ -101,7 +107,7 @@ Object.defineProperty(TemplateDomain.prototype, "domain", {
 TemplateDomain.getTemplatesByDomain = function(domain_id, attribute_id, func_callback) {
   var query = db.query("SELECT * FROM ser_template_domain INNER JOIN ser_template ON ser_template_domain.template_id = ser_template.id " +
                 "WHERE ser_template_domain.domain_id = " + domain_id + " AND ser_template.attribute_id = " + attribute_id +
-                " ORDER BY ser_template_domain.probability_success DESC", function(err, rows) {
+                " AND ser_template.template_group_id IS NULL ORDER BY ser_template_domain.probability_success DESC", function(err, rows) {
     if (err) throw err;
     
     if (rows.length != 0) {
@@ -128,6 +134,22 @@ TemplateDomain.getTemplatesByDomain = function(domain_id, attribute_id, func_cal
     }
   });
   console.log(query.sql);
+};
+
+TemplateDomain.getTemplateDomainByIds = function(domain_id, template_id, callback) {
+  Access.selectByColumn("ser_template_domain", "template_id", template_id, "AND domain_id = " + domain_id,
+    function(result) {
+      if (result != null) {
+        var template_domain = new TemplateDomain(result[0].template_id, result[0].domain_id,
+                                                result[0].probability_success, result[0].variance,
+                                                result[0].correct_count, result[0].total_count);
+        callback(template_domain);
+      } else {
+        console.log("No template_domain selected");
+        callback(null);
+      }
+    }
+  );
 };
 
 module.exports = TemplateDomain;

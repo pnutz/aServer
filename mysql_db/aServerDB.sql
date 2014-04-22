@@ -67,8 +67,10 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_group` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `group_id` INT NOT NULL,
   `domain_id` INT NOT NULL,
-  `probability_success` DECIMAL(5,2) NULL,
+  `probability_success` DECIMAL(5,2) NOT NULL,
   `variance` DECIMAL(5,2) NULL,
+  `correct_count` INT NOT NULL,
+  `total_count` INT NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_template_attribute_group_idx` (`group_id` ASC),
   INDEX `fk_template_group_domain_idx` (`domain_id` ASC),
@@ -123,8 +125,10 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_domain` (
   `template_id` INT NOT NULL,
   `domain_id` INT NOT NULL,
-  `probability_success` DECIMAL(5,2) NULL,
+  `probability_success` DECIMAL(5,2) NOT NULL,
   `variance` DECIMAL(5,2) NULL,
+  `correct_count` INT NOT NULL,
+  `total_count` INT NOT NULL,
   PRIMARY KEY (`template_id`, `domain_id`),
   INDEX `fk_domain_idx` (`domain_id` ASC),
   CONSTRAINT `fk_template`

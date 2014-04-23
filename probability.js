@@ -28,36 +28,55 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
           if (saved_data.hasOwnProperty(key) && saved_data[key] != generated_data[key]) {
             TemplateDomain.getTemplateDomainByIds(domain_id, generated_data.templates[key], function(template_domain) {
               template_domain.total_count++;
-              template_domain.probability_success = template_domain.correct_count/template_domain.total_count;
+              template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
               template_domain.save(callback);
             });
           } else {
+            // successful
             callback();
           }
         } else if (key == "items") {
           var item_keys = Object.keys(generated_data.items);
           async.eachSeries(item_keys, function(item_key, each_callback) {
-            // user deleted item generated
-            if (generated_data.items[item_key].hasOwnProperty("deleted")) {
+            var item_attributes = generated_data.items[item_key];
+            var attribute_keys = Object.keys(item_attributes);
+            async.eachSeries(attribute_keys, function(attribute_key, each_callback2) {
+              // user deleted item generated
+              if (item_attributes.hasOwnProperty("deleted") ||
+                  // or user has changed item attribute data
+                  (saved_data.items[item_key][attribute_key] != null && saved_data.items[item_key][attribute_key] != item_attributes[attribute_key])) {
+                TemplateDomain.getTemplateDomainByIds(domain_id, generated_data.templates.items[item_key][attribute_key], function(template_domain) {
+                  template_domain.total_count++;
+                  template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                  template_domain.save(each_callback2);
+                });
+              }
+              // item was saved
+              else {
+                TemplateDomain.getTemplateDomainByIds(domain_id, generated_data.templates.items[item_key][attribute_key], function(template_domain) {
+                  template_domain.correct_count++;
+                  template_domain.total_count++;
+                  template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                  template_domain.save(each_callback2);
+                });
+              }
+            }, function(err) {
+              if (err) {
+                console.log(err.message);
+              }
               
-            } else {
-              var item_attributes = generated_data.items[item_key];
-              var attribute_keys = Object.keys(item_attributes);
-              async.eachSeries(attribute_keys, function(attribute_key, each_callback2) {
-                // user has changed item attribute data
-                if (saved_data.items[item_key][attribute_key] != item_attributes[attribute_key]) {
-                  
-                  // generated_data.templates.items[item_key][attribute_key]
-                } else {
-                  each_callback2();
+              // track grouped templates probability
+              async.series([
+                function(series_callback2) {
+                  series_callback2();
                 }
-              }, function(err) {
+              ], function(err, results) {
                 if (err) {
                   console.log(err.message);
                 }
                 each_callback();
               });
-            }
+            });
           }, function(err) {
             if (err) {
               console.log(err.message);
@@ -83,11 +102,3 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
     }
   });
 };
-
-function decreaseTemplateProbability() {
-
-}
-
-function increaseTemplateProbability() {
-
-}

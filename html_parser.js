@@ -111,7 +111,7 @@ function generateTemplateGroup(user_id, url_id, domain_id, attribute_group, temp
     // create template group
     function(callback) {
       SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", "Receipt Items", function(group_id) {
-        var template_group = new TemplateGroup(null, domain_id, group_id, null, null);
+        var template_group = new TemplateGroup(null, domain_id, group_id, 1, null, 1, 1);
         template_group.save(function(id) {
           template_group_id = id;
           callback();
@@ -438,7 +438,7 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
     // create template_domain for template & domain
     function(callback) {
       console.log("----------------TEMPLATE DOMAIN----------------------");
-      var new_template_domain = new TemplateDomain(template_id, domain_id, 100, null, 1, 1);
+      var new_template_domain = new TemplateDomain(template_id, domain_id, 1, null, 1, 1);
       new_template_domain.save(callback);
     },
     // parse HTML & create root element

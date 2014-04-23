@@ -58,7 +58,7 @@ TemplateGroup.prototype.save = function(callback) {
       correct_count: local.correct_count,
       total_count: local.total_count
     };
-    insertTemplateGroup(post, callback);
+    updateTemplateGroup(post, callback);
   }
 };
 
@@ -77,8 +77,8 @@ function insertTemplateGroup(post, callback) {
   console.log(query.sql);
 }
 
-function updateTemplateGroup(id, post, callback) {
-  var query = db.query("UPDATE ser_template_group SET ? WHERE id = ?", [post, id], function(err, result) {
+function updateTemplateGroup(post, callback) {
+  var query = db.query("UPDATE ser_template_group SET ? WHERE id = ?", [post, post.id], function(err, result) {
     if (err) {
       db.rollback(function() {
         throw err;

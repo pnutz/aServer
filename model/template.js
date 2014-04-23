@@ -34,7 +34,7 @@ Template.prototype.save = function(callback) {
       callback(id);
     });
   } else {
-    updateTemplate(local.id, post, callback);
+    updateTemplate(post, callback);
   }
 };
 
@@ -53,8 +53,8 @@ function insertTemplate(post, callback) {
   console.log(query.sql);
 }
 
-function updateTemplate(id, post, callback) {
-  var query = db.query("UPDATE ser_template SET ? WHERE id = ?", [post, id], function(err, result) {
+function updateTemplate(post, callback) {
+  var query = db.query("UPDATE ser_template SET ? WHERE id = ?", [post, post.id], function(err, result) {
     if (err) {
       db.rollback(function() {
         throw err;

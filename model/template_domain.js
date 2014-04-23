@@ -57,7 +57,7 @@ TemplateDomain.prototype.save = function(callback) {
       correct_count: local.correct_count,
       total_count: local.total_count
     };
-    insertTemplateDomain(post, callback);
+    updateTemplateDomain(post, callback);
   }
 };
 
@@ -75,8 +75,8 @@ function insertTemplateDomain(post, callback) {
   console.log(query.sql);
 }
 
-function updateTemplateDomain(template_id, domain_id, post, callback) {
-  var query = db.query("UPDATE ser_template_domain SET ? WHERE template_id = ? AND domain_id = ?", [post, template_id, domain_id], function(err, result) {
+function updateTemplateDomain(post, callback) {
+  var query = db.query("UPDATE ser_template_domain SET ? WHERE template_id = ? AND domain_id = ?", [post, post.template_id, post.domain_id], function(err, result) {
     if (err) {
       db.rollback(function() {
         throw err;

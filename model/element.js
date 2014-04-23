@@ -75,7 +75,7 @@ Element.prototype.save = function(callback) {
       });
     }
   } else {
-    updateElement(local.id, post, callback);
+    updateElement(post, callback);
   }
 };
 
@@ -94,8 +94,8 @@ function insertElement(post, callback) {
   console.log(query.sql);
 }
 
-function updateElement(id, post, callback) {
-  var query = db.query("UPDATE ser_element SET ? WHERE id = ?", [post, id], function(err, result) {
+function updateElement(post, callback) {
+  var query = db.query("UPDATE ser_element SET ? WHERE id = ?", [post, post.id], function(err, result) {
     if (err) {
       db.rollback(function() {
         throw err;

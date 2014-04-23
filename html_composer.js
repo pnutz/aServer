@@ -72,9 +72,15 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         json_message.templates[attribute] = template.id;
                         each_callback(new Error(true));
                       } else {
-                        template.total_count++;
-                        template.probability_success = template.correct_count / template.total_count;
-                        template.save(each_callback);
+                        TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
+                          if (template_domain != null) {
+                            template_domain.total_count++;
+                            template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                            template_domain.save(each_callback);
+                          } else {
+                            each_callback();
+                          }
+                        });
                       }
                     });
                   }, function(err) {
@@ -216,7 +222,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               Template.getTemplatesByGroup(template_group.id, function(templates) {
                 if (templates != null) {
                   console.log("----------------PROCESS GROUPED TEMPLATES----------------------");
-                  processGroupedTemplates(templates, $, row_attribute_id, grouped_attributes, function(results) {
+                  processGroupedTemplates(templates, $, row_attribute_id, domain_id, grouped_attributes, function(results) {
                     if (results != null) {
                       items[template_group.id] = results;
                     }
@@ -258,10 +264,32 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                       if (formatted_items[row_key].hasOwnProperty(attr) && items[key][row_key].hasOwnProperty(attr)) {
                         compareAttributeResults(formatted_items[row_key][attr], items[key][row_key][attr], function(replace_attr) {
                           if (replace_attr) {
-                            formatted_items[row_key][attr] = items[key][row_key][attr];
-                            json_message.templates.items[row_key][attr] = items[key].templates[row_key][attr];
+                            // lower probability for old template
+                            TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates.items[row_key][attr], function(template_domain) {
+                              // replace attribute
+                              formatted_items[row_key][attr] = items[key][row_key][attr];
+                              json_message.templates.items[row_key][attr] = items[key].templates[row_key][attr];
+                              
+                              if (template_domain != null) {
+                                template_domain.total_count++;
+                                template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                                template_domain.save(each_callback3);
+                              } else {
+                                each_callback3();
+                              }
+                            });
+                          } else {
+                            // lower probability for new template
+                            TemplateDomain.getTemplateDomainByIds(domain_id, items[key].templates[row_key][attr], function(template_domain) {
+                              if (template_domain != null) {
+                                template_domain.total_count++;
+                                template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                                template_domain.save(each_callback3);
+                              } else {
+                                each_callback3();
+                              }
+                            });
                           }
-                          each_callback3();
                         });
                       }
                       // attribute does not exist for row, but exists for current template group
@@ -298,9 +326,42 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               if (err) {
                 console.log(err.message);
               }
-              // set json_message items
-              json_message.items = formatted_items;
-              series_callback();
+              
+              // re-calculate template group probability
+              async.eachSeries(template_groups, function(template_group, each_callback) {
+                // get all templates in template_group
+                Template.getTemplatesByGroup(template_group.id, function(templates) {
+                  if (templates != null) {
+                    var correct_count = 0, total_count = 0;
+                    async.eachSeries(templates, function(template, each_callback2) {
+                      TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
+                        if (template_domain != null) {
+                          correct_count += template_domain.correct_count;
+                          total_count += template_domain.total_count;
+                        }
+                        each_callback2();
+                      });
+                    }, function(err2) {
+                      if (err2) {
+                        console.log(err2.message);
+                      }
+                      template_group.correct_count = correct_count;
+                      template_group.total_count = total_count;
+                      template_group.probability_success = correct_count / total_count;
+                      template_group.save(each_callback);
+                    });
+                  } else {
+                    each_callback(new Error("No templates in template_group"));
+                  }
+                });
+              }, function(err2) {
+                if (err2) {
+                  console.log(err2.message);
+                }
+                // set json_message items
+                json_message.items = formatted_items;
+                series_callback();
+              });
             });
           }
         ], function(err, results) {
@@ -348,7 +409,7 @@ function processTemplate(template, $, match_class, body_element_id, callback) {
 // forms text from selection that matches template text and returns it (or empty string if it can't be found)
 function findTextSelection(template_id, selection, func_callback) {
   var text_node, element, left_text, right_text, element_text,
-  text_result = selection.text().trim().replace(/\n/g, ""), negative = false, left_index, right_index;
+  text_result = selection.text().trim().replace(/\n/g, ""), negative = false, left_index;
   console.log("----------------CALCULATE TEXT----------------------");
   async.series([
     // get root text node from template
@@ -472,8 +533,8 @@ function findTextSelection(template_id, selection, func_callback) {
       if (left_index != null && left_index != -1) {
         text_result = text_result.substring(left_index + left_text.text.length);
       }
-      if (right_index != null) {
-        right_index = text_result.indexOf(right_text.text);
+      if (right_text != null) {
+        var right_index = text_result.indexOf(right_text.text);
         if (right_index != -1) {
           text_result = text_result.substring(0, right_index);
         }
@@ -648,7 +709,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
 }
 
 // compares templates with $ html dom, returns all matched values, null if doesn't match
-function processGroupedTemplates(templates, $, row_attribute_id, grouped_attributes, callback) {
+function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grouped_attributes, callback) {
   var json_results = {}, table_row_id /* 0-0 */, row_element_id = {}, row_class /* TwoReceipt0-0 */, sibling_rows, json_templates = {};
 
   async.series([
@@ -706,8 +767,17 @@ function processGroupedTemplates(templates, $, row_attribute_id, grouped_attribu
             }
             // no match is found, stop calculating with template
             else {
-              
-              each_callback(new Error("Initial template did not return results"));
+              TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
+                if (template_domain != null) {
+                  template_domain.total_count++;
+                  template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                  template_domain.save(function() {
+                    each_callback(new Error("Initial template did not return results"));
+                  });
+                } else {
+                  each_callback(new Error("Initial template did not return results"));
+                }
+              });
             }
           });
         } else {
@@ -747,7 +817,17 @@ function processGroupedTemplates(templates, $, row_attribute_id, grouped_attribu
                 }
                 // no match is found, stop calculating with template
                 else {
-                  each_callback2(new Error("Template did not return results"));
+                  TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
+                    if (template_domain != null) {
+                      template_domain.total_count++;
+                      template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                      template_domain.save(function() {
+                        each_callback2(new Error("Template did not return results"));
+                      });
+                    } else {
+                      each_callback2(new Error("Template did not return results"));
+                    }
+                  });
                 }
               });
             } else {

@@ -7,7 +7,6 @@ exports.applyCalculations = function(json_message, html, callback) {
   var keys = Object.keys(json_message);
   var grouped_keys = Object.keys(json_message.items);
   var items_to_delete = [];
-  
   async.series([
     // find default value for all independent receipt attributes
     function(series_callback) {
@@ -70,7 +69,6 @@ exports.applyCalculations = function(json_message, html, callback) {
             if (err) {
               console.log(err.message);
             }
-            
             if (attribute != null) {   
               async.series([
                 // find default value if no result was found
@@ -86,7 +84,6 @@ exports.applyCalculations = function(json_message, html, callback) {
                     checkInvalidItem(json_message.items[key][item_key], function(is_valid) {
                       // if item is invalid, store key and item_key for deleting
                       console.log(json_message.items[key][item_key] + " " + is_valid);
-                      
                       if (!is_valid) {
                         items_to_delete.push(key);
                       }

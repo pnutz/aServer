@@ -32,8 +32,8 @@ function TemplateDomain(template_id, domain, probability, variance, correct_coun
 // save to db
 TemplateDomain.prototype.save = function(callback) {
   var local = this;
-  // check if domain exists in db
-  if (local.domain_id == null) {
+  // check if id exists and domain exists in db
+  if (local.id == null && local.domain_id == null) {
     Access.save(DOMAIN_TABLE, DOMAIN_COLUMN, local._domain, function (domain_id) {
       local.domain_id = domain_id;
       var post = {
@@ -47,7 +47,19 @@ TemplateDomain.prototype.save = function(callback) {
       insertTemplateDomain(post, callback);
     });
   }
-  // we know domain already exists in db
+  // check if id exists in db
+  else if (local.id == null) {
+    var post = {
+      template_id: local.template_id,
+      domain_id: local.domain_id,
+      probability_success: local.probability_success,
+      variance: local.variance,
+      correct_count: local.correct_count,
+      total_count: local.total_count
+    };
+    insertTemplateDomain(post, callback);
+  }
+  // we know id/domain already exists in db
   else {
     var post = {
       template_id: local.template_id,
@@ -150,6 +162,37 @@ TemplateDomain.getTemplateDomainByIds = function(domain_id, template_id, callbac
       }
     }
   );
+};
+
+TemplateDomain.getTemplateDomainsByGroup = function(template_group_id, func_callback) {
+  var query = db.query("SELECT * FROM ser_template_domain INNER JOIN ser_template ON ser_template_domain.template_id = ser_template.id " +
+                "WHERE ser_template.group_id = " + template_group_id, function(err, rows) {
+    if (err) throw err;
+    
+    if (rows.length != 0) {
+      var result = rows;
+      var template_domains = [];
+      async.eachSeries(result, function(template_domain, callback) {
+        var selected_template_domain = new TemplateDomain(template_domain.template_id,
+                                      template_domain.domain_id, template_domain.probability_success, 
+                                      template_domain.variance, template_domain.correct_count, template_domain.total_count);
+        template_domains.push(selected_template_domain);
+        callback();
+      }, function(err) {
+        if (err) {
+          console.log("getTemplateDomainsByGroup: " + err.message);
+          func_callback(null);
+        } else {
+          func_callback(template_domains);
+        }
+      });
+    }
+    else {
+      console.log("No template domains selected");
+      func_callback(null);
+    }
+  });
+  console.log(query.sql);
 };
 
 module.exports = TemplateDomain;

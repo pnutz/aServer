@@ -96,6 +96,7 @@ function start()
                                               console.log(json_message);
                                               // 2nd layer calculations
                                               layer.applyCalculations(json_message, req.params.html, function(altered_message) {
+                                                debugger;
                                                 res.header("Content-Type", "text/plain");
                                                 console.log(altered_message);
                                                 res.send(200, JSON.stringify(altered_message));

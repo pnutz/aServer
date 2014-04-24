@@ -33,9 +33,10 @@ function TemplateGroup(id, domain, group_id, probability, variance, correct_coun
 // save to db
 TemplateGroup.prototype.save = function(callback) {
   var local = this;
-  // check if domain exists in db
-  if (local.domain_id == null) {
+  // check if id exists and domain exists in db
+  if (local.id == null && local.domain_id == null) {
     Access.save(DOMAIN_TABLE, DOMAIN_COLUMN, local._domain, function (domain_id) {
+      debugger;
       local.domain_id = domain_id;
       var post = {
         domain_id: local.domain_id,
@@ -48,7 +49,19 @@ TemplateGroup.prototype.save = function(callback) {
       insertTemplateGroup(post, callback);
     });
   }
-  // we know domain already exists in db
+  // check if id exists in db
+  else if (local.id == null) {
+    var post = {
+      domain_id: local.domain_id,
+      group_id: local.group_id,
+      probability_success: local.probability_success,
+      variance: local.variance,
+      correct_count: local.correct_count,
+      total_count: local.total_count
+    };
+    insertTemplateGroup(post, callback);
+  }
+  // we know id/domain already exists in db
   else {
     var post = {
       domain_id: local.domain_id,
@@ -58,7 +71,7 @@ TemplateGroup.prototype.save = function(callback) {
       correct_count: local.correct_count,
       total_count: local.total_count
     };
-    updateTemplateGroup(post, callback);
+    updateTemplateGroup(local.id, post, callback);
   }
 };
 
@@ -77,8 +90,8 @@ function insertTemplateGroup(post, callback) {
   console.log(query.sql);
 }
 
-function updateTemplateGroup(post, callback) {
-  var query = db.query("UPDATE ser_template_group SET ? WHERE id = ?", [post, post.id], function(err, result) {
+function updateTemplateGroup(id, post, callback) {
+  var query = db.query("UPDATE ser_template_group SET ? WHERE id = ?", [post, id], function(err, result) {
     if (err) {
       db.rollback(function() {
         throw err;
@@ -106,18 +119,36 @@ Object.defineProperty(TemplateGroup.prototype, "domain", {
   }
 });
 
-TemplateGroup.getTemplateGroupsByDomain = function(group_id, domain_id, func_callback) {
+TemplateGroup.getTemplateGroupById = function(id, callback) {
+  Access.selectByColumn("ser_template_group", "id", id, "",
+    function(result) {
+      if (result != null) {
+        var selected_group = new TemplateGroup(result[0].id, result[0].domain_id,
+                                              result[0].group_id, result[0].probability,
+                                              result[0].variance, result[0].correct_count, result[0].total_count);
+        callback(selected_group);
+      } else {
+        console.log("No template_group selected");
+        callback(null);
+      }
+    }
+  );
+};
+
+TemplateGroup.getTemplateGroups = function(group_id, domain_id, func_callback) {
   Access.selectByColumn("ser_template_group", "group_id", group_id, "AND domain_id = " + domain_id + " ORDER BY probability_success DESC LIMIT 10",
     function(result) {
       if (result != null) {
         var groups = [];
         async.eachSeries(result, function(group, callback) {
-          var selected_group = new TemplateGroup(group.id, group.domain_id, group.group_id, group.probability, group.variance);
+          var selected_group = new TemplateGroup(group.id, group.domain_id,
+                                                group.group_id, group.probability,
+                                                group.variance, group.correct_count, group.total_count);
           groups.push(selected_group);
           callback();
         }, function(err) {
           if (err) {
-            console.log("getTemplatesByGroup: " + err.message);
+            console.log("getTemplateGroups: " + err.message);
             func_callback(null);
           } else {
             func_callback(groups);

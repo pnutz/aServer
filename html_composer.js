@@ -206,7 +206,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
           },
           // set template_groups for attribute_group and domain_id
           function(series_callback) {
-            TemplateGroup.getTemplateGroupsByDomain(group.id, domain_id, function(result_groups) {
+            TemplateGroup.getTemplateGroups(group.id, domain_id, function(result_groups) {
               if (result_groups != null) {
                 template_groups = result_groups;
                 series_callback();
@@ -804,6 +804,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
           async.eachSeries(templates, function(template, each_callback2) {
             if (template.attribute_id != row_attribute_id) {
               // different function
+              debugger;
               processTemplate(template, $, row_class, row_element_id[template.id], function(template_result) {
                 // match found, store element_id for template and json results (can be empty string)
                 if (template_result != null) {

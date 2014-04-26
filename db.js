@@ -10,7 +10,9 @@ function connect() {
   // can use url string for production instead of db_config
   var connection = mysql.createConnection(db_config);
   connection.connect(function(err) {
-    if (err) throw err;
+    if (err) {
+      throw err;
+    }
     
     console.log("Connected to MySQL Database");
   });

@@ -438,7 +438,7 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
     // create template_domain for template & domain
     function(callback) {
       console.log("----------------TEMPLATE DOMAIN----------------------");
-      var new_template_domain = new TemplateDomain(template_id, domain_id, 1, null, 1, 1);
+      var new_template_domain = new TemplateDomain(null, template_id, domain_id, 1, null, 1, 1);
       new_template_domain.save(callback);
     },
     // parse HTML & create root element

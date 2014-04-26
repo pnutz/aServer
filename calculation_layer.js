@@ -83,7 +83,7 @@ exports.applyCalculations = function(json_message, html, callback) {
                   else {
                     checkInvalidItem(json_message.items[key][item_key], function(is_valid) {
                       // if item is invalid, store key and item_key for deleting
-                      console.log(json_message.items[key][item_key] + " " + is_valid);
+                      console.log("valid?: " + json_message.items[key][item_key] + " " + is_valid);
                       if (!is_valid) {
                         items_to_delete.push(key);
                       }

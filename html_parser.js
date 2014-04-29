@@ -410,7 +410,7 @@ function generateRowTemplate(user_id, url_id, template_group_id, template_callba
 }
 
 function generateTemplate(user_id, attribute, selection, element, html, body_text, url_id, domain_id, group_id, template_callback) {
-  var template_id, element_dom, element_text,
+  var template_id, element_dom,
   $, element_id, left_text_id, right_text_id, text, parent_element_id, root_order,
   first_text_child, second_text_child, child_elements = {}, element_indices = {};
   
@@ -456,14 +456,6 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
       } else {
         tag = element_dom[0].name;
       }
-      element_text = element_dom.text();
-      
-      // set text
-      if (selection == "") {
-        text = element_text;
-      } else {
-        text = selection;
-      }
       
       // create root element
       console.log("----------------ROOT ELEMENT----------------------");
@@ -486,7 +478,7 @@ function generateTemplate(user_id, attribute, selection, element, html, body_tex
     // save root text
     function(callback) {
       console.log("----------------ROOT TEXT----------------------");
-      var root_text = new Text(null, template_id, element_id, null, "root", text.trim().replace(/\n/g, ""));
+      var root_text = new Text(null, template_id, element_id, null, "root", selection.trim().replace(/\n/g, ""));
       root_text.save(function(root_text_id) {
         if (root_text_id != null) {
           left_text_id = root_text_id;

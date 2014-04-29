@@ -120,10 +120,13 @@ Object.defineProperty(TemplateDomain.prototype, "domain", {
 
 TemplateDomain.getTemplatesByDomain = function(domain_id, attribute_id, func_callback) {
   var query = db.query("SELECT * FROM ser_template_domain INNER JOIN ser_template ON ser_template_domain.template_id = ser_template.id " +
-                "WHERE ser_template_domain.domain_id = " + domain_id + " AND ser_template.attribute_id = " + attribute_id +
-                " AND ser_template.template_group_id IS NULL ORDER BY ser_template_domain.probability_success DESC", function(err, rows) {
+                "WHERE ser_template_domain.domain_id = " + domain_id +
+                " AND ser_template.attribute_id = " + attribute_id +
+                " AND ser_template.template_group_id IS NULL " +
+                "AND ser_template_domain.probability_success > 0.1 " +
+                "ORDER BY ser_template_domain.probability_success DESC LIMIT 20", function(err, rows) {
     if (err) throw err;
-    
+
     if (rows.length != 0) {
       var result = rows;
       var templates = [];
@@ -168,7 +171,9 @@ TemplateDomain.getTemplateDomainByIds = function(domain_id, template_id, callbac
 
 TemplateDomain.getTemplateDomainsByGroup = function(template_group_id, func_callback) {
   var query = db.query("SELECT * FROM ser_template_domain INNER JOIN ser_template ON ser_template_domain.template_id = ser_template.id " +
-                "WHERE ser_template.template_group_id = " + template_group_id, function(err, rows) {
+                "WHERE ser_template.template_group_id = " + template_group_id +
+                " AND ser_template_domain.probability_success > 0.1 " +
+                "ORDER BY ser_template_domain.probability_success DESC LIMIT 20", function(err, rows) {
     if (err) throw err;
     
     if (rows.length != 0) {

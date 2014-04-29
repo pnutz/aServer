@@ -136,7 +136,9 @@ TemplateGroup.getTemplateGroupById = function(id, callback) {
 };
 
 TemplateGroup.getTemplateGroups = function(group_id, domain_id, func_callback) {
-  Access.selectByColumn("ser_template_group", "group_id", group_id, "AND domain_id = " + domain_id + " ORDER BY probability_success DESC LIMIT 10",
+  Access.selectByColumn("ser_template_group", "group_id", group_id, "AND domain_id = " + domain_id + 
+                        " AND probability_success > 0.1 " +
+                        "ORDER BY probability_success DESC LIMIT 20",
     function(result) {
       if (result != null) {
         var groups = [];

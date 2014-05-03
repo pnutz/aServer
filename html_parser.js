@@ -1,7 +1,7 @@
 var cheerio = require("cheerio"),
 async = require("async"),
 CLASS_NAME = "TwoReceipt",
-TEXT_ID = "-!|_|!-",
+TEXT_ID = "-!_!-",
 CHILDREN_LIMIT = 0,
 Element = require("./model/element"),
 Template = require("./model/template"),

@@ -388,7 +388,6 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         // attribute exists for row
                         if (formatted_items[match_index].hasOwnProperty(attr)) {
                           TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates.items[match_index][attr], function(template_domain) {
-                            debugger;
                             if (template_domain != null) {
                               template_domain.total_count++;
                               template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
@@ -418,7 +417,6 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         // attribute exists for row
                         if (items[key][row_key].hasOwnProperty(attr)) {
                           TemplateDomain.getTemplateDomainByIds(domain_id, items[key].templates[row_key][attr], function(template_domain) {
-                            debugger;
                             if (template_domain != null) {
                               template_domain.total_count++;
                               template_domain.probability_success = template_domain.correct_count / template_domain.total_count;

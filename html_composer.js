@@ -22,14 +22,14 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
       console.log("----------------LOAD DOMAIN----------------------");
       SimpleTable.getIdByValue("ser_domain", "domain_name", domain, function(select_domain_id) {
         // found domain
-        if (select_domain_id != null) {
+        if (select_domain_id !== null) {
           domain_id = select_domain_id;
           $ = cheerio.load("<body>" + html + "</body>");
           console.log("Created DOM");
           callback();
         } else {
           // only add total if domain does not exist
-          json_message["total"] = "";
+          json_message.total = "";
           callback(new Error("Domain does not exist in DB"));
         }
       });
@@ -51,7 +51,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                 console.log("----------------LOAD TEMPLATES----------------------");
                 TemplateDomain.getTemplatesByDomain(domain_id, attribute_id, function(templates) {
                   // found templates
-                  if (templates != null && templates.length > 0) {
+                  if (templates !== null && templates.length > 0) {
                     _templates = templates;
                   } else {
                     _templates = null;
@@ -62,18 +62,18 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               },
               // iterate through templates to find text
               function(series_callback) {
-                if (_templates != null) {
+                if (_templates !== null) {
                   async.eachSeries(_templates, function(template, each_callback) {
                     console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
                     processTemplate(template, $, null, null, function(template_result) {
-                      if (template_result != null && template_result != "") {
+                      if (template_result !== null && template_result !== "") {
                         // return found text to add to message
                         json_message[attribute] = template_result;
                         json_message.templates[attribute] = template.id;
                         each_callback(new Error(true));
                       } else {
                         TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
-                          if (template_domain != null) {
+                          if (template_domain !== null) {
                             template_domain.total_count++;
                             template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                             template_domain.save(each_callback);
@@ -84,7 +84,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                       }
                     });
                   }, function(err) {
-                    if (err && err.message != "true") {
+                    if (err && err.message !== "true") {
                       json_message[attribute] = "";
                       console.log(err.message);
                     } else if (!err) {
@@ -172,7 +172,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
     // set attribute_groups
     function(callback) {
       SimpleTable.selectByColumn("ser_receipt_attribute_group", "TRUE", "TRUE", "", function(result_groups) {
-        if (result_groups != null) {
+        if (result_groups !== null) {
           attribute_groups = result_groups;
           callback();
         } else {
@@ -188,7 +188,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
           // set grouped attributes
           function(series_callback) {
             ReceiptAttribute.getGroupedReceiptAttributes(group.id, function(attributes) {
-              if (attributes != null) {
+              if (attributes !== null) {
                 async.eachSeries(attributes, function(attribute, each_callback2) {
                   grouped_attributes[attribute.id] = attribute.name;
                   each_callback2();
@@ -207,7 +207,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
           // set template_groups for attribute_group and domain_id
           function(series_callback) {
             TemplateGroup.getTemplateGroups(group.id, domain_id, function(result_groups) {
-              if (result_groups != null) {
+              if (result_groups !== null) {
                 template_groups = result_groups;
                 series_callback();
               } else {
@@ -220,10 +220,10 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
             async.eachSeries(template_groups, function(template_group, each_callback2) {
               // get all templates in template_group
               Template.getTemplatesByGroup(template_group.id, function(templates) {
-                if (templates != null) {
+                if (templates !== null) {
                   console.log("----------------PROCESS GROUPED TEMPLATES----------------------");
                   processGroupedTemplates(templates, $, row_attribute_id, domain_id, grouped_attributes, function(results) {
-                    if (results != null) {
+                    if (results !== null) {
                       items[template_group.id] = results;
                     }
                     each_callback2();
@@ -255,7 +255,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               var row_keys = Object.keys(items[key]);
               // loop through each row in item
               async.eachSeries(row_keys, function(row_key, each_callback2) {
-                if (row_key != "templates" && row_key != "0") {
+                if (row_key !== "templates" && row_key !== "0") {
                   // row already exists, compare with selected row
                   if (formatted_items.hasOwnProperty(row_key)) {
                     // loop through each attribute to compare individual results
@@ -271,7 +271,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                               formatted_items[row_key][attr] = items[key][row_key][attr];
                               json_message.templates.items[row_key][attr] = items[key].templates[row_key][attr];
                               
-                              if (template_domain != null) {
+                              if (template_domain !== null) {
                                 template_domain.total_count++;
                                 template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                                 template_domain.save(each_callback3);
@@ -282,7 +282,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                           } else {
                             // lower probability for new template
                             TemplateDomain.getTemplateDomainByIds(domain_id, items[key].templates[row_key][attr], function(template_domain) {
-                              if (template_domain != null) {
+                              if (template_domain !== null) {
                                 template_domain.total_count++;
                                 template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                                 template_domain.save(each_callback3);
@@ -316,15 +316,15 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                   }
                 }
                 // template group did not have row attribute, do not allow duplicates
-                else if (row_key == "0") {
+                else if (row_key === "0") {
                   // loop through existing non_row_indices to find matches
                   var compare_row_index = 0, match_index;
-                  async.whilst(function() { return compare_row_index < non_row_index },
+                  async.whilst(function() { return compare_row_index < non_row_index; },
                   function(whilst_callback) {
                     var existing_keys = Object.keys(formatted_items[compare_row_index]);
                     var new_keys = Object.keys(items[key][row_key]);
                     // existing item has the same # of attributes as new item
-                    if (existing_keys.length == new_keys.length) {
+                    if (existing_keys.length === new_keys.length) {
                       // track if match is duplicate or replacement
                       var duplicate = true;
                       async.eachSeries(existing_keys, function(existing_key, each_callback3) {
@@ -351,11 +351,11 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                           each_callback3(new Error("no match found"));
                         }
                       }, function(err) {
-                        if (err && err.message != "no match found") {
+                        if (err && err.message !== "no match found") {
                           console.log(err.message);
                         }
                         
-                        if (err && err.message == "no match found") {
+                        if (err && err.message === "no match found") {
                           compare_row_index++;
                           whilst_callback();
                         }
@@ -366,7 +366,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         // if replacement
                         else {
                           match_index = compare_row_index;
-                          whilst_callback(new Error("match found"))
+                          whilst_callback(new Error("match found"));
                         }
                       });
                     }
@@ -376,19 +376,19 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                       whilst_callback();
                     }
                   }, function(err) {
-                    if (err && err.message != "match found") {
+                    if (err && err.message !== "match found") {
                       console.log(err.message);
                     }
                     
                     // replace existing item & lower probability for replaced item
-                    if (match_index != null && err && err.message == "match found") {
+                    if (match_index !== null && err && err.message === "match found") {
                       // loop through item attributes
                       async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
                         var attr = grouped_attributes[attribute_key];
                         // attribute exists for row
                         if (formatted_items[match_index].hasOwnProperty(attr)) {
                           TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates.items[match_index][attr], function(template_domain) {
-                            if (template_domain != null) {
+                            if (template_domain !== null) {
                               template_domain.total_count++;
                               template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                               template_domain.save(each_callback3);
@@ -410,14 +410,14 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                       });
                     }
                     // toss new item & lower probability for new item
-                    else if (err && err.message == "match found") {
+                    else if (err && err.message === "match found") {
                       // loop through item attributes
                       async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
                         var attr = grouped_attributes[attribute_key];
                         // attribute exists for row
                         if (items[key][row_key].hasOwnProperty(attr)) {
                           TemplateDomain.getTemplateDomainByIds(domain_id, items[key].templates[row_key][attr], function(template_domain) {
-                            if (template_domain != null) {
+                            if (template_domain !== null) {
                               template_domain.total_count++;
                               template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                               template_domain.save(each_callback3);
@@ -463,11 +463,11 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               async.eachSeries(template_groups, function(template_group, each_callback) {
                 // get all templates in template_group
                 Template.getTemplatesByGroup(template_group.id, function(templates) {
-                  if (templates != null) {
+                  if (templates !== null) {
                     var correct_count = 0, total_count = 0;
                     async.eachSeries(templates, function(template, each_callback2) {
                       TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
-                        if (template_domain != null) {
+                        if (template_domain !== null) {
                           correct_count += template_domain.correct_count;
                           total_count += template_domain.total_count;
                         }
@@ -523,10 +523,10 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
 // compares template with $ html dom, returns value if matches, null if doesn't match
 function processTemplate(template, $, match_class, body_element_id, callback) {
   constructElementPath(template.id, $, match_class, body_element_id, function(selection, element_id) {
-    if (selection != null) {
+    if (selection !== null) {
       // calculate text off of selection
       findTextSelection(template.id, selection, function(result) {
-        if (result != "") {
+        if (result !== "") {
           callback(result, element_id);
         } else {
           callback(null);
@@ -557,7 +557,7 @@ function findTextSelection(template_id, selection, func_callback) {
     },
     // get element from text_node
     function(callback) {
-      if (text_node.element_id != null) {
+      if (text_node.element_id !== null) {
         Element.getElementById(text_node.element_id, function(err, root_element) {
           if (err) {
             callback(new Error("root element not found"));
@@ -573,10 +573,10 @@ function findTextSelection(template_id, selection, func_callback) {
     // get left text node if it exists and is under root element
     function(callback) {
       text_node.left = function(left_result) {
-        if (left_result != null) {
+        if (left_result !== null) {
           Element.getElementById(left_result.element_id, function(err, left_element) {
             // left_result element cannot be a sibling
-            if (left_element != null && left_element.relation != "sibling") {
+            if (left_element !== null && left_element.relation !== "sibling") {
               left_text = left_result;
             }
             callback();
@@ -589,10 +589,10 @@ function findTextSelection(template_id, selection, func_callback) {
     // get right text node if it exists and is under root element
     function(callback) {
       text_node.right = function(right_result) {
-        if (right_result != null) {
+        if (right_result !== null) {
           Element.getElementById(right_result.element_id, function(err, right_element) {
             // right_result element cannot be a sibling
-            if (right_element != null && right_element.relation != "sibling") {
+            if (right_element !== null && right_element.relation !== "sibling") {
               right_text = right_result;
             }
             callback();
@@ -605,9 +605,9 @@ function findTextSelection(template_id, selection, func_callback) {
     // calculation for money values to find negatives
     function(callback) {
       var negative_count = 0, negative_index;
-      if (left_text != null) {
+      if (left_text !== null) {
         left_index = text_result.indexOf(left_text.text);
-        if (left_index != -1) {
+        if (left_index !== -1) {
           async.series([
             // find how many negative signs exist in left_text
             function(series_callback) {
@@ -643,7 +643,7 @@ function findTextSelection(template_id, selection, func_callback) {
                   series_callback();
                 }
               );
-            },
+            }
           ], function(err, result) {
             if (err) {
               console.log(err.message);
@@ -662,10 +662,10 @@ function findTextSelection(template_id, selection, func_callback) {
     },
     // calculate left & right text
     function(callback) {
-      if (left_index != null && left_index != -1) {
+      if (left_index !== null && left_index !== -1) {
         text_result = text_result.substring(left_index + left_text.text.length);
       }
-      if (right_text != null) {
+      if (right_text !== null) {
         var right_index = text_result.indexOf(right_text.text);
         if (right_index != -1) {
           text_result = text_result.substring(0, right_index);
@@ -674,7 +674,7 @@ function findTextSelection(template_id, selection, func_callback) {
       text_result = text_result.trim();
       
       // check if result is a number before applying negative
-      if (!isNaN(parseInt(text_result)) && negative) {
+      if (!isNaN(parseInt(text_result, 10)) && negative) {
         text_result = "-" + text_result;
       }
       
@@ -698,7 +698,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
   async.series([
     // set element to template body_element
     function(callback) {
-      if (body_element_id == null) {
+      if (body_element_id === null) {
         selection = $("body");
         Element.getBodyElementByTemplate(template_id, function(err, body_element) {
           if (err) {
@@ -724,7 +724,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
     function(callback) {
       async.whilst(
         // whilst loop condition
-        function() { return element.element_id != null; },
+        function() { return element.element_id !== null; },
         // whilst loop function
         function(whilst_callback) {
           async.series([
@@ -738,7 +738,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
             // select element
             function(series2_callback) {
               selection = selection.children(/*selector*/);
-              if (selection.length == 0) {
+              if (selection.length === 0) {
                 series2_callback(new Error("selection has no children"));
               } else {
                 series2_callback();
@@ -747,7 +747,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
             // select order (does not work with tag & attributes)
             function(series2_callback) {
               selection = selection.eq(element.order);
-              if (selection.length == 0) {
+              if (selection.length === 0) {
                 series2_callback(new Error("order selected does not exist"));
               } else {
                 series2_callback();
@@ -764,7 +764,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
             },
             // check if (optional) match_class 
             function(series2_callback) {
-              if (match_class != null && body_element_id == null && selection.attr("class") != null && selection.attr("class").indexOf(match_class) != -1) {
+              if (match_class !== null && body_element_id === null && selection.attr("class") !== null && selection.attr("class").indexOf(match_class) !== -1) {
                 console.log("Set element_id from element path");
                 element_id = element.id;
               }
@@ -790,7 +790,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
     // calculate on match
     function(callback) {
       // check if there is a match
-      if (selection != null && selection.length != 0) {
+      if (selection !== null && selection.length !== 0) {
         callback(null, selection);
       } else {
         callback();
@@ -813,13 +813,13 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
   async.series([
     // setup grouped calculation if row template exists and matches
     function(series_callback) {
-      if (row_attribute_id == null) {
+      if (row_attribute_id === null) {
         table_row_id = 0;
       }
       async.each(templates, function(template, each_callback) {
-        if (table_row_id != 0 && template.attribute_id == row_attribute_id) {
+        if (table_row_id !== 0 && template.attribute_id === row_attribute_id) {
           constructElementPath(template.id, $, null, null, function(row_element) {
-            if (row_element != null) {
+            if (row_element !== null) {
               row_class = row_element.attr("class");
               row_class = row_class.substring(row_class.indexOf("TwoReceipt"));
               table_row_id = row_class.substring("TwoReceipt".length);
@@ -839,7 +839,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
         if (err) {
           series_callback(err);
         } else {
-          if (table_row_id == null) {
+          if (table_row_id === null) {
             table_row_id = 0;
           }
           series_callback();
@@ -849,11 +849,11 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
     // complete first calculation, store row_element_id if row template exists
     function(series_callback) {
       async.eachSeries(templates, function(template, each_callback) {
-        if (template.attribute_id != row_attribute_id) {
+        if (template.attribute_id !== row_attribute_id) {
           processTemplate(template, $, row_class, null, function(template_result, element_id) {
             // match found, store element_id for template and json results (can be empty string)
-            if (template_result != null) {
-              if (json_results[table_row_id] == null) {
+            if (template_result !== null) {
+              if (json_results[table_row_id] === null) {
                 json_results[table_row_id] = {};
                 json_templates[table_row_id] = {};
               }
@@ -866,7 +866,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
             // no match is found, stop calculating with template
             else {
               TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
-                if (template_domain != null) {
+                if (template_domain !== null) {
                   template_domain.total_count++;
                   template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                   template_domain.save(function() {
@@ -891,11 +891,11 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
     },
     // calculate other rows if row template exists
     function(series_callback) {
-      if (table_row_id != 0) {
+      if (table_row_id !== 0) {
         // loop through each sibling row
         async.eachSeries(sibling_rows, function(target_row, each_callback) {
           // set row variables
-          row_class = target_row.attribs.class;
+          row_class = target_row.attribs["class"];
           row_class = row_class.substring(row_class.indexOf("TwoReceipt"));
           table_row_id = row_class.substring("TwoReceipt".length);
           
@@ -904,8 +904,8 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
               // different function
               processTemplate(template, $, row_class, row_element_id[template.id], function(template_result) {
                 // match found, store element_id for template and json results (can be empty string)
-                if (template_result != null) {
-                  if (json_results[table_row_id] == null) {
+                if (template_result !== null) {
+                  if (json_results[table_row_id] === null) {
                     json_results[table_row_id] = {};
                     json_templates[table_row_id] = {};
                   }
@@ -916,7 +916,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
                 // no match is found, stop calculating with template
                 else {
                   TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
-                    if (template_domain != null) {
+                    if (template_domain !== null) {
                       template_domain.total_count++;
                       template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
                       template_domain.save(function() {

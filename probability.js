@@ -11,7 +11,7 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
     // get domain id
     function(series_callback) {
       Access.getIdByValue("ser_domain", "domain_name", domain, function(access_domain_id) {
-        if (access_domain_id != null) {
+        if (access_domain_id !== null) {
           domain_id = access_domain_id;
           series_callback();
         } else {
@@ -23,11 +23,12 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
     function(series_callback) {
       var template_groups = {};
       var keys = Object.keys(generated_data);
+      
       async.eachSeries(keys, function(key, callback) {
-        if (key != "items" && key != "templates") {
-          if (generated_data.templates[key] != null) {
+        if (key !== "items" && key !== "templates") {
+          if (generated_data.templates[key] !== null) {
             // user has changed generated data
-            if (saved_data.hasOwnProperty(key) && saved_data[key] != generated_data[key]) {
+            if (saved_data.hasOwnProperty(key) && saved_data[key] !== generated_data[key]) {
               TemplateDomain.getTemplateDomainByIds(domain_id, generated_data.templates[key], function(template_domain) {
                 console.log("------------- decrease probability for " + key + " template_domain -------------");
                 template_domain.total_count++;
@@ -48,26 +49,26 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
           } else {
             callback();
           }
-        } else if (key == "items") {
+        } else if (key === "items") {
           var template_groups = {};
           var item_keys = Object.keys(generated_data.items);
           async.eachSeries(item_keys, function(item_key, each_callback) {
-            if (generated_data.templates.items[item_key] != null) {
+            if (generated_data.templates.items[item_key] !== null) {
               var item_attributes = generated_data.items[item_key];
               var attribute_keys = Object.keys(item_attributes);
               async.eachSeries(attribute_keys, function(attribute_key, each_callback2) {
-                if (generated_data.templates.items[item_key][attribute_key] != null) {
+                if (generated_data.templates.items[item_key][attribute_key] !== null) {
                   // user deleted item generated
                   if (generated_data.templates.items[item_key].hasOwnProperty("deleted") ||
                       // or user has changed item attribute data
-                      (saved_data.items[item_key][attribute_key] != null && saved_data.items[item_key][attribute_key] != item_attributes[attribute_key])) {
+                      (saved_data.items[item_key][attribute_key] !== null && saved_data.items[item_key][attribute_key] !== item_attributes[attribute_key])) {
                     async.series([
                       function(series_callback2) {
                         Template.getTemplateById(generated_data.templates.items[item_key][attribute_key], function(err, template) {
                           if (err) {
                             series_callback2(err);
                           } else {
-                            if (template_groups[template.template_group_id] == null) {
+                            if (template_groups[template.template_group_id] === null) {
                               template_groups[template.template_group_id] = true;
                             }
                             series_callback2();
@@ -97,7 +98,7 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
                           if (err) {
                             series_callback2(err);
                           } else {
-                            if (template_groups[template.template_group_id] == null) {
+                            if (template_groups[template.template_group_id] === null) {
                               template_groups[template.template_group_id] = true;
                             }
                             series_callback2();
@@ -132,12 +133,12 @@ exports.compareGeneratedSavedData = function(domain, generated_data, saved_data)
                 var group_keys = Object.keys(template_groups);
                 async.eachSeries(group_keys, function(group_key, each_callback2) {
                   TemplateGroup.getTemplateGroupById(group_key, function(group) {
-                    if (group != null) {
+                    if (group !== null) {
                       group.correct_count = 0;
                       group.total_count = 0;
                       // loop through template_group template's template_domains
                       TemplateDomain.getTemplateDomainsByGroup(group.id, function(template_domains) {
-                        if (template_domains != null) {
+                        if (template_domains !== null) {
                           async.eachSeries(template_domains, function(template_domain, each_callback3) {
                             group.correct_count += template_domain.correct_count;
                             group.total_count += template_domain.total_count;

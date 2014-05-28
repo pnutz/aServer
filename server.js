@@ -29,8 +29,7 @@ function start()
   server.pre(function(req, res, next) {
     // Check the origin string
     var inOriginStr = req.header('origin');
-    if (!inOriginStr || inOriginStr.indexOf(originString) === -1) 
-    {
+    if (!inOriginStr || inOriginStr.indexOf(originString) === -1) {
       res.send(new Error("Invalid origin."));
       console.log("Invalid Origin : " + req.header('origin'));
       console.log(req.header('origin').indexOf(originString === -1));
@@ -43,31 +42,27 @@ function start()
   server.post('/template', function test(req, res, next) {
     console.log("Data received for " + req.params.email);
     // Authorization
-    if (req.params.userID != null && req.params.email != null && req.params.token != null) 
-    {
+    if (req.params.userID !== null && req.params.email !== null && req.params.token !== null) {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
-        if (result === true)
-        {
+        if (result === true) {
           var attribute_data = JSON.parse(req.params.attributes);
           var generated_data = JSON.parse(req.params.generated);
           var saved_data = JSON.parse(req.params.saved_data);
           setImmediate(probability.compareGeneratedSavedData(req.params.domain, generated_data, saved_data));
           
           // send http request to WebApp
-          setImmediate(parse.generateTemplates(req.params.userID, attribute_data));
+          setImmediate(parse.generateTemplates(req.params.userID, req.params.domain, req.params.url, req.params.html, attribute_data));
           res.header("Content-Type", "text/plain");
           res.send(200, "Authorization Token Accepted");
           console.log("Request Completed");
         }
-        else // Webapp authentication failed
-        {
+        // Webapp authentication failed
+        else {
           res.send(new Error("Authorization Token Denied"));
           console.log("Request Authorization failed");
         }
       });
-    }
-    else
-    {
+    } else {
       res.send(new Error("Missing user credentials"));
       console.log("Missing user credentials");
     }
@@ -79,14 +74,13 @@ function start()
   server.post('/load', function test(req, res, next) {
     console.log(req.params.domain + " data received for " + req.params.email);
     // Authorization
-    if (req.params.domain == "") {
+    if (req.params.domain === "") {
         res.send(new Error("Invalid domain"));
         console.log("Invalid domain");
         return next();
-    } else if (req.params.userID != null && req.params.email != null && req.params.token != null) {
+    } else if (req.params.userID !== null && req.params.email !== null && req.params.token !== null) {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
-        if (result === true)
-        {
+        if (result === true) {
           // send http request to WebApp
           setImmediate(compose.readTemplate(req.params.userID,
                                             req.params.html,
@@ -103,15 +97,13 @@ function start()
                                               });
                                             }));
         }
-        else // Webapp authentication failed
-        {
+        // Webapp authentication failed
+        else {
           res.send(new Error("Authorization Token Denied"));
           console.log("Request Authorization failed");
         }
       });
-    }
-    else
-    {
+    } else {
       res.send(new Error("Missing user credentials"));
       console.log("Missing user credentials");
     }
@@ -124,7 +116,7 @@ function start()
     console.log("%s listening at %s", server.name, server.url);
   });
   console.log("Server Started");
-};
+}
 
 function incrementRequestCount() {
   request_count++;

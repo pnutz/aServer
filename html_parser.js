@@ -1,7 +1,5 @@
 var cheerio = require("cheerio"),
 async = require("async"),
-CLASS_NAME = "TwoReceipt",
-TEXT_ID = "-!_!-",
 CHILDREN_LIMIT = 0,
 Element = require("./model/element"),
 Template = require("./model/template"),
@@ -399,10 +397,10 @@ function generateRowTemplate(user_id, url_id, template_group_id, template_callba
 }
 
 function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id, group_index, template_callback) {
-  var template_id, element_dom,
-  $, element_id, left_text_id, right_text_id, parent_element_id, root_order,
-  first_text_child, second_text_child, child_elements = {}, element_indices = {},
-  selection, field_data, start_index, end_index;
+  var template_id, element_dom, $, element_id,
+      left_text_id, right_text_id, parent_element_id, root_order,
+      first_text_child, second_text_child, child_elements = {}, element_indices = {},
+      text_selection, data_attr_selector, start_index, end_index;
   
   async.series([
     // create template for receipt attribute
@@ -437,11 +435,11 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
       console.log("Created DOM");
       
       if (group_id !== null) {
-        field_data = "data-tworeceipt-" + attribute + group_index;
-        element_dom = $("[" + field_data + "-start]");
+        data_attr_selector = "data-tworeceipt-" + attribute + group_index;
+        element_dom = $("[" + data_attr_selector + "-start]");
       } else {
-        field_data = "data-tworeceipt-" + attribute;
-        element_dom = $("[" + field_data + "-start]");
+        data_attr_selector = "data-tworeceipt-" + attribute;
+        element_dom = $("[" + data_attr_selector + "-start]");
       }
       
       // create root element
@@ -462,11 +460,10 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     // calculate selected text
     function(callback) {
       getElementText($, element_dom, function(text) {
-        selection = text;
-        var start_index = element_dom.attr(field_data + "-start");
-        var end_index = element_dom.attr(field_data + "-end");
-        selection = selection.substring(start_index, end_index);
-        debugger;
+        text_selection = text;
+        start_index = element_dom.attr(data_attr_selector + "-start");
+        end_index = element_dom.attr(data_attr_selector + "-end");
+        text_selection = text_selection.substring(start_index, end_index);
         callback();
       });
     },
@@ -477,7 +474,7 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     // save root text
     function(callback) {
       console.log("----------------ROOT TEXT----------------------");
-      var root_text = new Text(null, template_id, element_id, null, "root", selection.trim().replace(/\n/g, ""));
+      var root_text = new Text(null, template_id, element_id, null, "root", text_selection.trim().replace(/\n/g, ""));
       root_text.save(function(root_text_id) {
         if (root_text_id !== null) {
           left_text_id = root_text_id;
@@ -488,47 +485,95 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
         }
       });
     },
-    // find child node indices that contain left and right TEXT_ID and create child elements
+    // find index of child nodes that contain start_index and end_index. add left/right text node for these nodes
     function(callback) {
-      var child_index = 0, element_index = 0;
+      var child_index = 0, element_index = 0, character_index = 0;
       async.eachSeries(element_dom[0].children, function(child, each_callback) {
-      var text_index;
         if (child.type === "text") {
-          text_index = child.data.indexOf(TEXT_ID);
-          
-          if (text_index !== -1 && first_text_child === null) {
-            first_text_child = child_index;
+          // only do text calculations if first and second text_child indices have not been found
+          if (second_text_child === undefined) {
+            var child_text = child.data.trim();
             
-            // THIS PART NEEDS WORK!!!!!!!!
+            var contains_start, contains_end, local_start_index, local_end_index;
+            // possible to contain start_index
+            if (character_index < start_index) {
+              contains_start = true;
+              contains_end = true;
+              local_start_index = start_index - character_index;
+              local_end_index = end_index - character_index;
+            }
+            // possible to contain end_index
+            else if (character_index < end_index) {
+              contains_start = false;
+              contains_end = true;
+              local_end_index = end_index - character_index;
+            }
+            // cannot contain any index
+            else {
+              contains_start = false;
+              contains_end = false;
+            }
+            
+            // if first child, don't add space character to element text
+            if (child_index !== 0) {
+              child_text = " " + child_text;
+            }
+            character_index += child_text.length;
+            
+            // check if node contains end_index
+            if (character_index < start_index) {
+              contains_start = false;
+              contains_end = false;
+            }
+            else if (character_index < end_index) {
+              contains_end = false;
+            }
+            
             async.series([
-              // left text in text node
+              // calculate left_text
               function(series_callback) {
-                var left = child.data.substring(0, text_index);
-                if (text_index !== 0 && !isBlank(left)) {
-                  console.log("----------------LEFT NODE TEXT----------------------");
-                  var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left.trim().replace(/\n/g, ""));
-                  left_text_node.save(function (left_text_node_id) {
-                    if (left_text_node_id !== null) {
-                      left_text_id = left_text_node_id;
-                      series_callback();
-                    } else {
-                      series_callback(new Error("failed to create left text of element"));
+                // node contains start_index
+                if (contains_start) {
+                  first_text_child = child_index;
+                  var left_text = child_text.substring(0, local_start_index);
+                  if (!isBlank(left_text)) {
+                    // if start_index is at end of text, first_text_child should increase so 2nd iteration looks at index for left_text
+                    if (local_start_index === child_text.length) {
+                      first_text_child++;
                     }
-                  });
+                    
+                    console.log("----------------LEFT NODE TEXT----------------------");
+                    var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left_text.trim().replace(/\n/g, ""));
+                    left_text_node.save(function (left_text_node_id) {
+                      if (left_text_node_id !== null) {
+                        left_text_id = left_text_node_id;
+                        series_callback();
+                      } else {
+                        series_callback(new Error("failed to create left text of element"));
+                      }
+                    });
+                  } else {
+                    series_callback();
+                  }
                 } else {
                   series_callback();
                 }
               },
-              // right text in text node
+              // calculate right_text
               function(series_callback) {
-                var second_text_index = child.data.indexOf(TEXT_ID, text_index + 1);
-                if (second_text_index !== -1 && second_text_child === null) {
+                // node contains end_index
+                if (contains_end) {
                   second_text_child = child_index;
+                  var right_text = child_text.substring(local_end_index);
                   
-                  var right = child.data.substring(second_text_index + TEXT_ID.length);
-                  if (second_text_index != child.data.length - TEXT_ID.length && !isBlank(right)) {
+                  if (!isBlank(right_text)) {
+                    // if end_index is at beginning of text, second_text_child should decrease so 2nd iteration looks at index for right_text
+                    if (local_end_index === 0) {
+                      second_text_child--;
+                    }
+                    
                     console.log("----------------RIGHT NODE TEXT----------------------");
-                    var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
+                    var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right_text.trim().replace(/\n/g, ""));
                     right_text_node.save(function (right_text_node_id) {
                       if (right_text_node_id !== null) {
                         right_text_id = right_text_node_id;
@@ -551,35 +596,13 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
               child_index++;
               each_callback();
             });
-          }
-          // right text in text node
-          else if (text_index !== -1 && second_text_child === null) {
-            second_text_child = child_index;
-            child_index++;
-            
-            var right = child.data.substring(text_index + TEXT_ID.length);
-            if (text_index != child.data.length - TEXT_ID.length && !isBlank(right)) {
-              console.log("----------------RIGHT NODE TEXT----------------------");
-              var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
-              right_text_node.save(function (right_text_node_id) {
-                if (right_text_node_id !== null) {
-                  right_text_id = right_text_node_id;
-                  each_callback();
-                } else {
-                  each_callback(new Error("failed to create right text of element"));
-                }
-              });
-            } else {
-              each_callback();
-            }
           } else {
             child_index++;
             each_callback();
           }
         } else if (child.type === "tag") {
           var child_element = element_dom.children(element_index);
-          var child_element_text = child_element.text();
-          text_index = child_element_text.indexOf(TEXT_ID);
+          var contains_start, contains_end, local_start_index, local_end_index;
           
           // create child element
           var new_element = new Element(null, element_id, template_id, child_element[0].name, "child", 1, $.html(child_element), element_index);
@@ -590,16 +613,63 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
               /*function(series_callback) {
                 saveAttributes(child_element_id, child_element[0].attribs, series_callback);
               },*/
-              // left or right text is in element node
+              // calculate left & right text
               function(series_callback) {
-                // left text in element node
-                if (text_index !== -1 && first_text_child === null) {
-                  first_text_child = child_index;
+                // only do text calculations if first and second text_child indices have not been found
+                if (second_text_child === undefined) {
+                  var child_text = child_element.text().trim();
                   
-                  var left = child_element_text.substring(0, text_index);
-                  if (text_index !== 0 && !isBlank(left)) {
-                    console.log("----------------LEFT ELEMENT TEXT----------------------");
-                    var left_text_node = new Text(null, template_id, child_element_id, left_text_id, "left", left.trim().replace(/\n/g, ""));
+                  // possible to contain start_index
+                  if (character_index < start_index) {
+                    contains_start = true;
+                    contains_end = true;
+                    local_start_index = start_index - character_index;
+                    local_end_index = end_index - character_index;
+                  }
+                  // possible to contain end_index
+                  else if (character_index < end_index) {
+                    contains_start = false;
+                    contains_end = true;
+                    local_end_index = end_index - character_index;
+                  }
+                  // cannot contain any index
+                  else {
+                    contains_start = false;
+                    contains_end = false;
+                  }
+                  
+                  // if first child, don't add space character to element text
+                  if (child_index !== 0) {
+                    child_text = " " + child_text;
+                  }
+                  character_index += child_text.length;
+                  
+                  // check if node contains end_index
+                  if (character_index < start_index) {
+                    contains_start = false;
+                    contains_end = false;
+                  }
+                  else if (character_index < end_index) {
+                    contains_end = false;
+                  }
+                  series_callback();
+                } else {
+                  series_callback();
+                }
+              },
+              // create text nodes if current node contains start index
+              function(series_callback) {
+                if (first_text_child === undefined && contains_start) {
+                  first_text_child = child_index;
+                  var left_text = child_text.substring(0, local_start_index);
+                  if (!isBlank(left_text)) {
+                    // if start_index is at end of text, first_text_child should increase so 2nd iteration looks at index for left_text
+                    if (local_start_index === child_text.length) {
+                      first_text_child++;
+                    }
+                    
+                    console.log("----------------LEFT NODE TEXT----------------------");
+                    var left_text_node = new Text(null, template_id, child_elements[child_index], left_text_id, "left", left_text.trim().replace(/\n/g, ""));
                     left_text_node.save(function (left_text_node_id) {
                       if (left_text_node_id !== null) {
                         left_text_id = left_text_node_id;
@@ -611,15 +681,24 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
                   } else {
                     series_callback();
                   }
+                } else {
+                  series_callback();
                 }
-                // right text in element node
-                else if (text_index !== -1 && second_text_child === null) {
+              },
+              // create text nodes if current node contains end index
+              function(series_callback) {
+                if (second_text_child === undefined && contains_end) {
                   second_text_child = child_index;
+                  var right_text = child_text.substring(local_end_index);
                   
-                  var right = child_element_text.substring(text_index + TEXT_ID.length);
-                  if (text_index != child_element_text.length - TEXT_ID.length && !isBlank(right)) {
-                    console.log("----------------RIGHT ELEMENT TEXT----------------------");
-                    var right_text_node = new Text(null, template_id, child_element_id, right_text_id, "right", right.trim().replace(/\n/g, ""));
+                  if (!isBlank(right_text)) {
+                    // if end_index is at beginning of text, second_text_child should decrease so 2nd iteration looks at index for right_text
+                    if (local_end_index === 0) {
+                      second_text_child--;
+                    }
+                    
+                    console.log("----------------RIGHT NODE TEXT----------------------");
+                    var right_text_node = new Text(null, template_id, child_elements[child_index], right_text_id, "right", right_text.trim().replace(/\n/g, ""));
                     right_text_node.save(function (right_text_node_id) {
                       if (right_text_node_id !== null) {
                         right_text_id = right_text_node_id;
@@ -661,10 +740,10 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
           callback();
         }
       });
-    },
+    },   
     // iterate through left elements from first_text_child index
     function(callback) {
-      if (first_text_child !== null) {
+      if (first_text_child !== undefined) {
         var first_child = element_dom[0].children[first_text_child];
         async.whilst(function () { return first_child.prev !== null; },
         function (whilst_callback) {
@@ -713,7 +792,7 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     },
     // iterate through right elements from second_text_child index
     function(callback) {
-      if (second_text_child !== null) {
+      if (second_text_child !== undefined) {
         var second_child = element_dom[0].children[second_text_child];
         async.whilst(function () { return second_child.next !== null; },
         function (whilst_callback) {
@@ -808,7 +887,7 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
         async.eachSeries(parent_dom.children(), function(child, callback) {
           var child_dom = parent_dom.children(count);
           // match to root node, update order
-          if (child_dom[0] == root_node) {
+          if (child_dom[0] === root_node) {
             root_order = count;
             count++;
             // update root element with order

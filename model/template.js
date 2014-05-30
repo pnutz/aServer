@@ -41,6 +41,7 @@ Template.prototype.save = function(callback) {
 function insertTemplate(post, callback) {
   var query = db.query("INSERT INTO ser_template SET ?", post, function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });

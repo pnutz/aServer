@@ -460,6 +460,8 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     // calculate selected text
     function(callback) {
       getElementText($, element_dom, function(text) {
+        // HARD-CODED &nbsp; REMOVAL (case: amazon.ca)
+        text = text.replace(/&nbsp;/g, "");
         text_selection = text;
         start_index = element_dom.attr(data_attr_selector + "-start");
         end_index = element_dom.attr(data_attr_selector + "-end");
@@ -487,122 +489,139 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     },
     // find index of child nodes that contain start_index and end_index. add left/right text node for these nodes
     function(callback) {
-      var child_index = 0, element_index = 0, character_index = 0;
+          // tracks current child index
+      var child_index = 0,
+          // since space characters are added between text nodes, ensures first child (and blank children before first) does not append a space
+          first_index = true,
+          // tracks current element index
+          element_index = 0,
+          // tracks current character index to calculate if indices are included - each node's text length is added
+          character_index = 0;
       async.eachSeries(element_dom[0].children, function(child, each_callback) {
         if (child.type === "text") {
-          // only do text calculations if first and second text_child indices have not been found
+          // only do text calculations if (first and) second text_child indices have not been found
           if (second_text_child === undefined) {
             var child_text = child.data.trim();
+            child_text = child_text.replace(/&nbsp;/g, "");
             
-            var contains_start, contains_end, local_start_index, local_end_index;
-            // possible to contain start_index
-            if (character_index < start_index) {
-              contains_start = true;
-              contains_end = true;
-              local_start_index = start_index - character_index;
-              local_end_index = end_index - character_index;
-            }
-            // possible to contain end_index
-            else if (character_index < end_index) {
-              contains_start = false;
-              contains_end = true;
-              local_end_index = end_index - character_index;
-            }
-            // cannot contain any index
-            else {
-              contains_start = false;
-              contains_end = false;
-            }
-            
-            // if first child, don't add space character to element text
-            if (child_index !== 0) {
-              child_text = " " + child_text;
-            }
-            character_index += child_text.length;
-            
-            // check if node contains end_index
-            if (character_index < start_index) {
-              contains_start = false;
-              contains_end = false;
-            }
-            else if (character_index < end_index) {
-              contains_end = false;
-            }
-            
-            async.series([
-              // calculate left_text
-              function(series_callback) {
-                // node contains start_index
-                if (contains_start) {
-                  first_text_child = child_index;
-                  var left_text = child_text.substring(0, local_start_index);
-                  if (!isBlank(left_text)) {
-                    // if start_index is at end of text, first_text_child should increase so 2nd iteration looks at index for left_text
-                    if (local_start_index === child_text.length) {
-                      first_text_child++;
-                    }
+            if (!isBlank(child_text)) {
+              var contains_start, contains_end, local_start_index, local_end_index;
+              // possible to contain start_index
+              if (character_index < start_index) {
+                contains_start = true;
+                contains_end = true;
+                local_start_index = start_index - character_index;
+                local_end_index = end_index - character_index;
+              }
+              // possible to contain end_index
+              else if (character_index < end_index) {
+                contains_start = false;
+                contains_end = true;
+                local_end_index = end_index - character_index;
+              }
+              // cannot contain any index
+              else {
+                contains_start = false;
+                contains_end = false;
+              }
+              
+              // if first child, don't add space character to element text
+              if (child_index !== 0 && !first_index) {
+                child_text = " " + child_text;
+              }
+              if (first_index) {
+                first_index = false;
+              }
+              character_index += child_text.length;
+              
+              // check if node contains end_index
+              if (character_index < start_index) {
+                contains_start = false;
+                contains_end = false;
+              }
+              else if (character_index < end_index) {
+                contains_end = false;
+              }
+
+              async.series([
+                // calculate left_text
+                function(series_callback) {
+                  // node contains start_index
+                  if (contains_start) {
+                    first_text_child = child_index;
+                    var left_text = child_text.substring(0, local_start_index);
                     
-                    console.log("----------------LEFT NODE TEXT----------------------");
-                    var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left_text.trim().replace(/\n/g, ""));
-                    left_text_node.save(function (left_text_node_id) {
-                      if (left_text_node_id !== null) {
-                        left_text_id = left_text_node_id;
-                        series_callback();
-                      } else {
-                        series_callback(new Error("failed to create left text of element"));
+                    if (!isBlank(left_text)) {
+                      // if start_index is at end of text, first_text_child should increase so 2nd iteration looks at index for left_text
+                      if (local_start_index === child_text.length) {
+                        first_text_child++;
                       }
-                    });
+                      
+                      console.log("----------------LEFT NODE TEXT----------------------");
+                      var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left_text.trim().replace(/\n/g, ""));
+                      left_text_node.save(function (left_text_node_id) {
+                        if (left_text_node_id !== null) {
+                          left_text_id = left_text_node_id;
+                          series_callback();
+                        } else {
+                          series_callback(new Error("failed to create left text of element"));
+                        }
+                      });
+                    } else {
+                      series_callback();
+                    }
                   } else {
                     series_callback();
                   }
-                } else {
-                  series_callback();
-                }
-              },
-              // calculate right_text
-              function(series_callback) {
-                // node contains end_index
-                if (contains_end) {
-                  second_text_child = child_index;
-                  var right_text = child_text.substring(local_end_index);
-                  
-                  if (!isBlank(right_text)) {
-                    // if end_index is at beginning of text, second_text_child should decrease so 2nd iteration looks at index for right_text
-                    if (local_end_index === 0) {
-                      second_text_child--;
-                    }
+                },
+                // calculate right_text
+                function(series_callback) {
+                  // node contains end_index
+                  if (contains_end) {
+                    second_text_child = child_index;
+                    var right_text = child_text.substring(local_end_index);
                     
-                    console.log("----------------RIGHT NODE TEXT----------------------");
-                    var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right_text.trim().replace(/\n/g, ""));
-                    right_text_node.save(function (right_text_node_id) {
-                      if (right_text_node_id !== null) {
-                        right_text_id = right_text_node_id;
-                        series_callback();
-                      } else {
-                        series_callback(new Error("failed to create right text of element"));
+                    if (!isBlank(right_text)) {
+                      // if end_index is at beginning of text, second_text_child should decrease so 2nd iteration looks at index for right_text
+                      if (local_end_index === 0) {
+                        second_text_child--;
                       }
-                    });
+                      
+                      console.log("----------------RIGHT NODE TEXT----------------------");
+                      var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right_text.trim().replace(/\n/g, ""));
+                      right_text_node.save(function (right_text_node_id) {
+                        if (right_text_node_id !== null) {
+                          right_text_id = right_text_node_id;
+                          series_callback();
+                        } else {
+                          series_callback(new Error("failed to create right text of element"));
+                        }
+                      });
+                    } else {
+                      series_callback();
+                    }
                   } else {
                     series_callback();
                   }
-                } else {
-                  series_callback();
                 }
-              }
-            ], function(err, result) {
-              if (err) {
-                console.log(err.message);
-              }
+              ], function(err, result) {
+                if (err) {
+                  console.log(err.message);
+                }
+                child_index++;
+                each_callback();
+              });
+            } else {
               child_index++;
               each_callback();
-            });
+            }
           } else {
             child_index++;
             each_callback();
           }
         } else if (child.type === "tag") {
           var child_element = element_dom.children(element_index);
-          var contains_start, contains_end, local_start_index, local_end_index;
+          var contains_start, contains_end, local_start_index, local_end_index, child_text;
           
           // create child element
           var new_element = new Element(null, element_id, template_id, child_element[0].name, "child", 1, $.html(child_element), element_index);
@@ -613,12 +632,30 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
               /*function(series_callback) {
                 saveAttributes(child_element_id, child_element[0].attribs, series_callback);
               },*/
+              // create children elements
+              function(series_callback) {
+                iterateChildren(CHILDREN_LIMIT, child_element, child_element_id, template_id, 1, $, series_callback);
+              },
               // calculate left & right text
               function(series_callback) {
-                // only do text calculations if first and second text_child indices have not been found
+              // only do text calculations if (first and) second text_child indices have not been found
                 if (second_text_child === undefined) {
-                  var child_text = child_element.text().trim();
-                  
+                  getElementText($, child_element, function(text) {
+                    text = text.replace(/&nbsp;/g, "");
+                    if (!isBlank(text)) {
+                      child_text = text;
+                      series_callback();
+                    } else {
+                      series_callback(new Error("blank text"));
+                    }
+                  });
+                } else {
+                  series_callback();
+                }
+              },
+              function(series_callback) {
+                // only do text calculations if (first and) second text_child indices have not been found
+                if (second_text_child === undefined) {                  
                   // possible to contain start_index
                   if (character_index < start_index) {
                     contains_start = true;
@@ -639,8 +676,11 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
                   }
                   
                   // if first child, don't add space character to element text
-                  if (child_index !== 0) {
+                  if (child_index !== 0 && !first_index) {
                     child_text = " " + child_text;
+                  }
+                  if (first_index) {
+                    first_index = false;
                   }
                   character_index += child_text.length;
                   
@@ -713,10 +753,6 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
                 } else {
                   series_callback();
                 }
-              },
-              // create children elements
-              function(series_callback) {
-                iterateChildren(CHILDREN_LIMIT, child_element, child_element_id, template_id, 1, $, series_callback);
               }
             ], function(err, result) {
               if (err) {
@@ -1238,6 +1274,8 @@ function iterateText(node, method, method_params, callback) {
       }
       callback(method_params);
     });
+  } else {
+    callback(method_params);
   }
 }
 

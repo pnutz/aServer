@@ -78,6 +78,7 @@ TemplateDomain.prototype.save = function(callback) {
 function insertTemplateDomain(post, callback) {
   var query = db.query("INSERT INTO ser_template_domain SET ?", post, function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });

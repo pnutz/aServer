@@ -62,6 +62,7 @@ ReceiptAttribute.prototype.save = function(callback) {
 function insertReceiptAttribute(post, callback) {
   var query = db.query("INSERT INTO ser_receipt_attribute SET ?", post, function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });

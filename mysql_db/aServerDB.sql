@@ -10,7 +10,7 @@ USE `aserver` ;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_domain` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `domain_name` VARCHAR(45) NOT NULL,
+  `domain_name` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB;
 
@@ -20,7 +20,7 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_url` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `url` VARCHAR(255) NOT NULL,
+  `url` VARCHAR(2000) NOT NULL,
   `domain_id` INT NOT NULL,
   PRIMARY KEY (`id`),
   INDEX `domain_id_idx` (`domain_id` ASC),
@@ -149,7 +149,7 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_html_tag` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `tag_name` VARCHAR(10) NOT NULL,
+  `tag_name` VARCHAR(20) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB;
 
@@ -203,7 +203,7 @@ ENGINE = InnoDB;
 -- -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_element_attribute_value` (
   `id` INT NOT NULL AUTO_INCREMENT,
-  `attribute_value` VARCHAR(255) NOT NULL,
+  `attribute_value` VARCHAR(500) NOT NULL,
   PRIMARY KEY (`id`))
 ENGINE = InnoDB;
 

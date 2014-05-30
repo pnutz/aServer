@@ -82,6 +82,7 @@ Element.prototype.save = function(callback) {
 function insertElement(post, callback) {
   var query = db.query("INSERT INTO ser_element SET ?", post, function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });
@@ -97,6 +98,7 @@ function insertElement(post, callback) {
 function updateElement(id, post, callback) {
   var query = db.query("UPDATE ser_element SET ? WHERE id = ?", [post, id], function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });

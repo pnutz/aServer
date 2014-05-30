@@ -78,6 +78,7 @@ TemplateGroup.prototype.save = function(callback) {
 function insertTemplateGroup(post, callback) {
   var query = db.query("INSERT INTO ser_template_group SET ?", post, function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });

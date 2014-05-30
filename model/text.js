@@ -45,6 +45,7 @@ Text.prototype.save = function(callback) {
 function insertText(post, callback) {
   var query = db.query("INSERT INTO ser_text SET ?", post, function(err, result) {
     if (err) {
+      console.log(err.message);
       db.rollback(function() {
         throw err;
       });

@@ -12,7 +12,7 @@ function ReceiptAttribute(id, group, name, datatype) {
   if (name == null || datatype == null) {
     throw("receipt_attribute: invalid input");
   }
-  
+
   this.id = id;
 
   if (typeof group == "number") {
@@ -22,7 +22,7 @@ function ReceiptAttribute(id, group, name, datatype) {
     this.group_id = null;
     this._group = group;
   }
-  
+
   this.name = name;
   this.datatype = datatype;
 }
@@ -102,7 +102,7 @@ ReceiptAttribute.getReceiptAttributeById = function(id, callback) {
 };
 
 ReceiptAttribute.getReceiptAttributeByName = function(name, callback) {
-  Access.selectByColumn("ser_receipt_attribute", "attribute_name", "'" + name + "'", "", function(result) {
+  Access.selectByColumn("ser_receipt_attribute", "attribute_name", name, "", function(result) {
     if (result != null) {
       var receipt_attr = new ReceiptAttribute(result[0].id, result[0].group_id, result[0].attribute_name, result[0].data_type);
       callback(null, receipt_attr);
@@ -113,7 +113,7 @@ ReceiptAttribute.getReceiptAttributeByName = function(name, callback) {
 };
 
 ReceiptAttribute.getIndividualReceiptAttributes = function(func_callback) {
-  Access.selectByColumn("ser_receipt_attribute", "TRUE", "TRUE", "AND group_id IS NULL", function(result) {
+  Access.selectByColumn("ser_receipt_attribute", "'TRUE'", "TRUE", "AND group_id IS NULL", function(result) {
     if (result != null) {
       var attributes = [];
       async.eachSeries(result, function(attr, callback) {

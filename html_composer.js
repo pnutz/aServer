@@ -15,7 +15,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
   row_attribute_id, attribute_groups,
   // default create these attributes
   json_message = { date: "", vendor: "", transaction: "", items: {}, templates: {} };
-  
+
   async.series([
     // load domain
     function(callback) {
@@ -43,7 +43,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
             attribute = attr.name;
             console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
             attribute_id = attr.id;
-            
+
             // calculations for attribute
             async.series([
               // load all templates for attribute
@@ -128,7 +128,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
         } else {
           var current_table = tables.eq(index);
           current_table.addClass("TwoReceipt" + index);
-          
+
           // loop through rows and add class TwoReceipt#-# to each row, where # is table index & # is row index
           var row_index = 0, rows;
           if (current_table[0].name == "table") {
@@ -137,7 +137,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
           } else {
             rows = current_table.find("li, dt, dd").eq(0).parent().children("li, dt, dd");
           }
-          
+
           async.eachSeries(Object.keys(rows),
           function(row_key, each_callback2) {
             if (row_key === "length") {
@@ -171,7 +171,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
     },
     // set attribute_groups
     function(callback) {
-      SimpleTable.selectByColumn("ser_receipt_attribute_group", "TRUE", "TRUE", "", function(result_groups) {
+      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(result_groups) {
         if (result_groups !== null) {
           attribute_groups = result_groups;
           callback();
@@ -180,7 +180,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
         }
       });
     },
-    // load grouped attributes & build json message for attribute 
+    // load grouped attributes & build json message for attribute
     function(callback) {
       async.eachSeries(attribute_groups, function(group, each_callback) {
         var template_groups, grouped_attributes = {};
@@ -229,7 +229,8 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                     each_callback2();
                   });
                 } else {
-                  each_callback2(new Error("No templates in template_group"));
+                  console.log("No templates in template_group");
+                  each_callback2();
                 }
               });
             }, function(err) {
@@ -249,7 +250,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
             // grouped attribute keys, except row attribute
             var attribute_keys = Object.keys(grouped_attributes);
             attribute_keys.splice(attribute_keys.indexOf(row_attribute_id),1);
-            
+
             // loop through each template_group
             async.eachSeries(keys, function(key, each_callback) {
               var row_keys = Object.keys(items[key]);
@@ -270,7 +271,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                               // replace attribute
                               formatted_items[row_key][attr] = items[key][row_key][attr];
                               json_message.templates.items[row_key][attr] = items[key].templates[row_key][attr];
-                              
+
                               if (template_domain !== null) {
                                 template_domain.total_count++;
                                 template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
@@ -354,7 +355,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         if (err && err.message !== "no match found") {
                           console.log(err.message);
                         }
-                        
+
                         if (err && err.message === "no match found") {
                           compare_row_index++;
                           whilst_callback();
@@ -379,7 +380,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                     if (err && err.message !== "match found") {
                       console.log(err.message);
                     }
-                    
+
                     // replace existing item & lower probability for replaced item
                     if (match_index !== null && err && err.message === "match found") {
                       // loop through item attributes
@@ -403,7 +404,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                         if (err2) {
                           console.log(err2.message);
                         }
-                        
+
                         formatted_items[match_index] = items[key][row_key];
                         json_message.templates.items[match_index] = items[key].templates[row_key];
                         each_callback2();
@@ -458,7 +459,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               if (err) {
                 console.log(err.message);
               }
-              
+
               // re-calculate template group probability
               async.eachSeries(template_groups, function(template_group, each_callback) {
                 // get all templates in template_group
@@ -600,12 +601,12 @@ function findTextSelection(template_id, selection, func_callback) {
         } else {
           callback();
         }
-      };    
+      };
     },
     // calculation for money values to find negatives
     function(callback) {
       var negative_count = 0, negative_index;
-      if (left_text !== null) {
+      if (left_text !== undefined && left_text !== null) {
         left_index = text_result.indexOf(left_text.text);
         if (left_index !== -1) {
           async.series([
@@ -665,19 +666,19 @@ function findTextSelection(template_id, selection, func_callback) {
       if (left_index !== null && left_index !== -1) {
         text_result = text_result.substring(left_index + left_text.text.length);
       }
-      if (right_text !== null) {
+      if (right_text !== undefined && right_text !== null) {
         var right_index = text_result.indexOf(right_text.text);
         if (right_index != -1) {
           text_result = text_result.substring(0, right_index);
         }
       }
       text_result = text_result.trim();
-      
+
       // check if result is a number before applying negative
       if (!isNaN(parseInt(text_result, 10)) && negative) {
         text_result = "-" + text_result;
       }
-      
+
       callback();
     }
   ], function(err, result) {
@@ -762,9 +763,9 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
                 series2_callback();
               };
             },
-            // check if (optional) match_class 
+            // check if (optional) match_class
             function(series2_callback) {
-              if (match_class !== null && body_element_id === null && selection.attr("class") !== null && selection.attr("class").indexOf(match_class) !== -1) {
+              if (match_class !== null && body_element_id === null && selection.attr("class") !== undefined && selection.attr("class").indexOf(match_class) !== -1) {
                 console.log("Set element_id from element path");
                 element_id = element.id;
               }
@@ -860,7 +861,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
               json_results[table_row_id][grouped_attributes[template.attribute_id]] = template_result;
               json_templates[table_row_id][grouped_attributes[template.attribute_id]] = template.id;
               row_element_id[template.id] = element_id;
-              
+
               each_callback();
             }
             // no match is found, stop calculating with template
@@ -898,7 +899,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
           row_class = target_row.attribs["class"];
           row_class = row_class.substring(row_class.indexOf("TwoReceipt"));
           table_row_id = row_class.substring("TwoReceipt".length);
-          
+
           async.eachSeries(templates, function(template, each_callback2) {
             if (template.attribute_id != row_attribute_id) {
               // different function

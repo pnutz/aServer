@@ -11,10 +11,10 @@ Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
 exports.readTemplate = function(userID, html, url, domain, json_callback) {
-  var domain_id, attribute, attribute_id, _templates, $, items = {},
+  var domain_id, attribute, attribute_id, _templates, $, grouped_data = {},
   row_attribute_id, attribute_groups,
   // default create these attributes
-  json_message = { date: "", vendor: "", transaction: "", items: {}, templates: {} };
+  json_message = { date: "", vendor: "", transaction: "", templates: {} };
 
   async.series([
     // load domain
@@ -39,7 +39,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
       // select all rows of ser_receipt_attribute that are not grouped
       ReceiptAttribute.getIndividualReceiptAttributes(function(attributes) {
         async.eachSeries(attributes, function(attr, each_callback) {
-          if (attr.name != "total") {
+          if (attr.name !== "total") {
             attribute = attr.name;
             console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
             attribute_id = attr.id;
@@ -224,7 +224,10 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                   console.log("----------------PROCESS GROUPED TEMPLATES----------------------");
                   processGroupedTemplates(templates, $, row_attribute_id, domain_id, grouped_attributes, function(results) {
                     if (results !== null) {
-                      items[template_group.id] = results;
+                      if (grouped_data[group.group_name] === undefined) {
+                        grouped_data[group.group_name] = {};
+                      }
+                      grouped_data[group.group_name][template_group.id] = results;
                     }
                     each_callback2();
                   });
@@ -243,35 +246,153 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
           },
           // remove duplicate results and attach results to json_message
           function(series_callback) {
-            var formatted_items = {};
-            json_message.templates.items = {};
-            var keys = Object.keys(items);
-            var non_row_index = 0;
-            // grouped attribute keys, except row attribute
-            var attribute_keys = Object.keys(grouped_attributes);
-            attribute_keys.splice(attribute_keys.indexOf(row_attribute_id),1);
+            if (grouped_data[group.group_name] !== undefined) {
+              var formatted_items = {};
+              json_message.templates[group.group_name] = {};
+              var keys = Object.keys(grouped_data[group.group_name]);
+              var non_row_index = 0;
+              // grouped attribute keys, except row attribute
+              var attribute_keys = Object.keys(grouped_attributes);
+              attribute_keys.splice(attribute_keys.indexOf(row_attribute_id),1);
 
-            // loop through each template_group
-            async.eachSeries(keys, function(key, each_callback) {
-              var row_keys = Object.keys(items[key]);
-              // loop through each row in item
-              async.eachSeries(row_keys, function(row_key, each_callback2) {
-                if (row_key !== "templates" && row_key !== "0") {
-                  // row already exists, compare with selected row
-                  if (formatted_items.hasOwnProperty(row_key)) {
-                    // loop through each attribute to compare individual results
-                    async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
-                      var attr = grouped_attributes[attribute_key];
-                      // attribute already exists for row
-                      if (formatted_items[row_key].hasOwnProperty(attr) && items[key][row_key].hasOwnProperty(attr)) {
-                        compareAttributeResults(formatted_items[row_key][attr], items[key][row_key][attr], function(replace_attr) {
-                          if (replace_attr) {
-                            // lower probability for old template
-                            TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates.items[row_key][attr], function(template_domain) {
-                              // replace attribute
-                              formatted_items[row_key][attr] = items[key][row_key][attr];
-                              json_message.templates.items[row_key][attr] = items[key].templates[row_key][attr];
+              // loop through each template_group
+              async.eachSeries(keys, function(key, each_callback) {
+                var row_keys = Object.keys(grouped_data[group.group_name][key]);
+                // loop through each row in item
+                async.eachSeries(row_keys, function(row_key, each_callback2) {
+                  if (row_key !== "templates" && row_key !== "0") {
+                    // row already exists, compare with selected row
+                    if (formatted_items.hasOwnProperty(row_key)) {
+                      // loop through each attribute to compare individual results
+                      async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
+                        var attr = grouped_attributes[attribute_key];
+                        // attribute already exists for row
+                        if (formatted_items[row_key].hasOwnProperty(attr) && grouped_data[group.group_name][key][row_key].hasOwnProperty(attr)) {
+                          compareAttributeResults(formatted_items[row_key][attr], grouped_data[group.group_name][key][row_key][attr], function(replace_attr) {
+                            if (replace_attr) {
+                              // lower probability for old template
+                              TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates[group.group_name][row_key][attr], function(template_domain) {
+                                // replace attribute
+                                formatted_items[row_key][attr] = grouped_data[group.group_name][key][row_key][attr];
+                                json_message.templates[group.group_name][row_key][attr] = grouped_data[group.group_name][key].templates[row_key][attr];
 
+                                if (template_domain !== null) {
+                                  template_domain.total_count++;
+                                  template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                                  template_domain.save(each_callback3);
+                                } else {
+                                  each_callback3();
+                                }
+                              });
+                            } else {
+                              // lower probability for new template
+                              TemplateDomain.getTemplateDomainByIds(domain_id, grouped_data[group.group_name][key].templates[row_key][attr], function(template_domain) {
+                                if (template_domain !== null) {
+                                  template_domain.total_count++;
+                                  template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                                  template_domain.save(each_callback3);
+                                } else {
+                                  each_callback3();
+                                }
+                              });
+                            }
+                          });
+                        }
+                        // attribute does not exist for row, but exists for current template group
+                        else {
+                          if (grouped_data[group.group_name][key][row_key].hasOwnProperty(attr)) {
+                            formatted_items[row_key][attr] = grouped_data[group.group_name][key][row_key][attr];
+                            json_message.templates[group.group_name][row_key][attr] = grouped_data[group.group_name][key].templates[row_key][attr];
+                          }
+                          each_callback3();
+                        }
+                      }, function(err) {
+                        if (err) {
+                          console.log(err.message);
+                        }
+                        each_callback2();
+                      });
+                    }
+                    // row does not exist, add row
+                    else {
+                      formatted_items[row_key] = grouped_data[group.group_name][key][row_key];
+                      json_message.templates[group.group_name][row_key] = grouped_data[group.group_name][key].templates[row_key];
+                      each_callback2();
+                    }
+                  }
+                  // template group did not have row attribute, do not allow duplicates
+                  else if (row_key === "0") {
+                    // loop through existing non_row_indices to find matches
+                    var compare_row_index = 0, match_index;
+                    async.whilst(function() { return compare_row_index < non_row_index; },
+                    function(whilst_callback) {
+                      var existing_keys = Object.keys(formatted_items[compare_row_index]);
+                      var new_keys = Object.keys(grouped_data[group.group_name][key][row_key]);
+                      // existing item has the same # of attributes as new item
+                      if (existing_keys.length === new_keys.length) {
+                        // track if match is duplicate or replacement
+                        var duplicate = true;
+                        async.eachSeries(existing_keys, function(existing_key, each_callback3) {
+                          if (grouped_data[group.group_name][key][row_key].hasOwnProperty(existing_key)) {
+                            // exact match
+                            if (formatted_items[compare_row_index][existing_key] === grouped_data[group.group_name][key][row_key][existing_key]) {
+                              each_callback3();
+                            }
+                            // possible replacement match
+                            else {
+                              duplicate = false;
+                              compareAttributeResults(formatted_items[compare_row_index][existing_key], grouped_data[group.group_name][key][row_key][existing_key],
+                                function(replace_attr) {
+                                  if (!replace_attr) {
+                                    each_callback3(new Error("no match found"));
+                                  } else {
+                                    each_callback3();
+                                  }
+                                }
+                              );
+                            }
+                          } else {
+                            duplicate = false;
+                            each_callback3(new Error("no match found"));
+                          }
+                        }, function(err) {
+                          if (err && err.message !== "no match found") {
+                            console.log(err.message);
+                          }
+
+                          if (err && err.message === "no match found") {
+                            compare_row_index++;
+                            whilst_callback();
+                          }
+                          // if identical match is found
+                          else if (duplicate) {
+                            whilst_callback(new Error("match found"));
+                          }
+                          // if replacement
+                          else {
+                            match_index = compare_row_index;
+                            whilst_callback(new Error("match found"));
+                          }
+                        });
+                      }
+                      // existing item has different # of attributes than new item, no match found
+                      else {
+                        compare_row_index++;
+                        whilst_callback();
+                      }
+                    }, function(err) {
+                      if (err && err.message !== "match found") {
+                        console.log(err.message);
+                      }
+
+                      // replace existing item & lower probability for replaced item
+                      if (match_index !== null && err && err.message === "match found") {
+                        // loop through item attributes
+                        async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
+                          var attr = grouped_attributes[attribute_key];
+                          // attribute exists for row
+                          if (formatted_items[match_index].hasOwnProperty(attr)) {
+                            TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates[group.group_name][match_index][attr], function(template_domain) {
                               if (template_domain !== null) {
                                 template_domain.total_count++;
                                 template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
@@ -281,8 +402,26 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                               }
                             });
                           } else {
-                            // lower probability for new template
-                            TemplateDomain.getTemplateDomainByIds(domain_id, items[key].templates[row_key][attr], function(template_domain) {
+                            each_callback3();
+                          }
+                        }, function(err2) {
+                          if (err2) {
+                            console.log(err2.message);
+                          }
+
+                          formatted_items[match_index] = grouped_data[group.group_name][key][row_key];
+                          json_message.templates[group.group_name][match_index] = grouped_data[group.group_name][key].templates[row_key];
+                          each_callback2();
+                        });
+                      }
+                      // toss new item & lower probability for new item
+                      else if (err && err.message === "match found") {
+                        // loop through item attributes
+                        async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
+                          var attr = grouped_attributes[attribute_key];
+                          // attribute exists for row
+                          if (grouped_data[group.group_name][key][row_key].hasOwnProperty(attr)) {
+                            TemplateDomain.getTemplateDomainByIds(domain_id, grouped_data[group.group_name][key].templates[row_key][attr], function(template_domain) {
                               if (template_domain !== null) {
                                 template_domain.total_count++;
                                 template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
@@ -291,211 +430,79 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                                 each_callback3();
                               }
                             });
-                          }
-                        });
-                      }
-                      // attribute does not exist for row, but exists for current template group
-                      else {
-                        if (items[key][row_key].hasOwnProperty(attr)) {
-                          formatted_items[row_key][attr] = items[key][row_key][attr];
-                          json_message.templates.items[row_key][attr] = items[key].templates[row_key][attr];
-                        }
-                        each_callback3();
-                      }
-                    }, function(err) {
-                      if (err) {
-                        console.log(err.message);
-                      }
-                      each_callback2();
-                    });
-                  }
-                  // row does not exist, add row
-                  else {
-                    formatted_items[row_key] = items[key][row_key];
-                    json_message.templates.items[row_key] = items[key].templates[row_key];
-                    each_callback2();
-                  }
-                }
-                // template group did not have row attribute, do not allow duplicates
-                else if (row_key === "0") {
-                  // loop through existing non_row_indices to find matches
-                  var compare_row_index = 0, match_index;
-                  async.whilst(function() { return compare_row_index < non_row_index; },
-                  function(whilst_callback) {
-                    var existing_keys = Object.keys(formatted_items[compare_row_index]);
-                    var new_keys = Object.keys(items[key][row_key]);
-                    // existing item has the same # of attributes as new item
-                    if (existing_keys.length === new_keys.length) {
-                      // track if match is duplicate or replacement
-                      var duplicate = true;
-                      async.eachSeries(existing_keys, function(existing_key, each_callback3) {
-                        if (items[key][row_key].hasOwnProperty(existing_key)) {
-                          // exact match
-                          if (formatted_items[compare_row_index][existing_key] == items[key][row_key][existing_key]) {
+                          } else {
                             each_callback3();
                           }
-                          // possible replacement match
-                          else {
-                            duplicate = false;
-                            compareAttributeResults(formatted_items[compare_row_index][existing_key], items[key][row_key][existing_key],
-                              function(replace_attr) {
-                                if (!replace_attr) {
-                                  each_callback3(new Error("no match found"));
-                                } else {
-                                  each_callback3();
-                                }
-                              }
-                            );
+                        }, function(err2) {
+                          if (err2) {
+                            console.log(err2.message);
                           }
-                        } else {
-                          duplicate = false;
-                          each_callback3(new Error("no match found"));
-                        }
-                      }, function(err) {
-                        if (err && err.message !== "no match found") {
-                          console.log(err.message);
-                        }
-
-                        if (err && err.message === "no match found") {
-                          compare_row_index++;
-                          whilst_callback();
-                        }
-                        // if identical match is found
-                        else if (duplicate) {
-                          whilst_callback(new Error("match found"));
-                        }
-                        // if replacement
-                        else {
-                          match_index = compare_row_index;
-                          whilst_callback(new Error("match found"));
-                        }
-                      });
-                    }
-                    // existing item has different # of attributes than new item, no match found
-                    else {
-                      compare_row_index++;
-                      whilst_callback();
-                    }
-                  }, function(err) {
-                    if (err && err.message !== "match found") {
-                      console.log(err.message);
-                    }
-
-                    // replace existing item & lower probability for replaced item
-                    if (match_index !== null && err && err.message === "match found") {
-                      // loop through item attributes
-                      async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
-                        var attr = grouped_attributes[attribute_key];
-                        // attribute exists for row
-                        if (formatted_items[match_index].hasOwnProperty(attr)) {
-                          TemplateDomain.getTemplateDomainByIds(domain_id, json_message.templates.items[match_index][attr], function(template_domain) {
-                            if (template_domain !== null) {
-                              template_domain.total_count++;
-                              template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
-                              template_domain.save(each_callback3);
-                            } else {
-                              each_callback3();
-                            }
-                          });
-                        } else {
-                          each_callback3();
-                        }
-                      }, function(err2) {
-                        if (err2) {
-                          console.log(err2.message);
-                        }
-
-                        formatted_items[match_index] = items[key][row_key];
-                        json_message.templates.items[match_index] = items[key].templates[row_key];
+                          each_callback2();
+                        });
+                      }
+                      // add new item
+                      else {
+                        formatted_items[non_row_index] = grouped_data[group.group_name][key][row_key];
+                        json_message.templates[group.group_name][non_row_index] = grouped_data[group.group_name][key].templates[row_key];
+                        non_row_index++;
                         each_callback2();
-                      });
-                    }
-                    // toss new item & lower probability for new item
-                    else if (err && err.message === "match found") {
-                      // loop through item attributes
-                      async.eachSeries(attribute_keys, function(attribute_key, each_callback3) {
-                        var attr = grouped_attributes[attribute_key];
-                        // attribute exists for row
-                        if (items[key][row_key].hasOwnProperty(attr)) {
-                          TemplateDomain.getTemplateDomainByIds(domain_id, items[key].templates[row_key][attr], function(template_domain) {
-                            if (template_domain !== null) {
-                              template_domain.total_count++;
-                              template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
-                              template_domain.save(each_callback3);
-                            } else {
-                              each_callback3();
-                            }
-                          });
-                        } else {
-                          each_callback3();
-                        }
-                      }, function(err2) {
-                        if (err2) {
-                          console.log(err2.message);
-                        }
-                        each_callback2();
-                      });
-                    }
-                    // add new item
-                    else {
-                      formatted_items[non_row_index] = items[key][row_key];
-                      json_message.templates.items[non_row_index] = items[key].templates[row_key];
-                      non_row_index++;
-                      each_callback2();
-                    }
-                  });
-                }
-                // templates key
-                else {
-                  each_callback2();
-                }
+                      }
+                    });
+                  }
+                  // templates key
+                  else {
+                    each_callback2();
+                  }
+                }, function(err) {
+                  if (err) {
+                    console.log(err.message);
+                  }
+                  each_callback();
+                });
               }, function(err) {
                 if (err) {
                   console.log(err.message);
                 }
-                each_callback();
-              });
-            }, function(err) {
-              if (err) {
-                console.log(err.message);
-              }
 
-              // re-calculate template group probability
-              async.eachSeries(template_groups, function(template_group, each_callback) {
-                // get all templates in template_group
-                Template.getTemplatesByGroup(template_group.id, function(templates) {
-                  if (templates !== null) {
-                    var correct_count = 0, total_count = 0;
-                    async.eachSeries(templates, function(template, each_callback2) {
-                      TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
-                        if (template_domain !== null) {
-                          correct_count += template_domain.correct_count;
-                          total_count += template_domain.total_count;
+                // re-calculate template group probability
+                async.eachSeries(template_groups, function(template_group, each_callback) {
+                  // get all templates in template_group
+                  Template.getTemplatesByGroup(template_group.id, function(templates) {
+                    if (templates !== null) {
+                      var correct_count = 0, total_count = 0;
+                      async.eachSeries(templates, function(template, each_callback2) {
+                        TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
+                          if (template_domain !== null) {
+                            correct_count += template_domain.correct_count;
+                            total_count += template_domain.total_count;
+                          }
+                          each_callback2();
+                        });
+                      }, function(err2) {
+                        if (err2) {
+                          console.log(err2.message);
                         }
-                        each_callback2();
+                        template_group.correct_count = correct_count;
+                        template_group.total_count = total_count;
+                        template_group.probability_success = correct_count / total_count;
+                        template_group.save(each_callback);
                       });
-                    }, function(err2) {
-                      if (err2) {
-                        console.log(err2.message);
-                      }
-                      template_group.correct_count = correct_count;
-                      template_group.total_count = total_count;
-                      template_group.probability_success = correct_count / total_count;
-                      template_group.save(each_callback);
-                    });
-                  } else {
-                    each_callback(new Error("No templates in template_group"));
+                    } else {
+                      each_callback(new Error("No templates in template_group"));
+                    }
+                  });
+                }, function(err2) {
+                  if (err2) {
+                    console.log(err2.message);
                   }
+                  // set json_message attribute groups
+                  json_message[group.group_name] = formatted_items;
+                  series_callback();
                 });
-              }, function(err2) {
-                if (err2) {
-                  console.log(err2.message);
-                }
-                // set json_message items
-                json_message.items = formatted_items;
-                series_callback();
               });
-            });
+            } else {
+              series_callback();
+            }
           }
         ], function(err, results) {
           if (err) {
@@ -663,7 +670,7 @@ function findTextSelection(template_id, selection, func_callback) {
     },
     // calculate left & right text
     function(callback) {
-      if (left_index !== null && left_index !== -1) {
+      if (left_index !== undefined && left_index !== -1) {
         text_result = text_result.substring(left_index + left_text.text.length);
       }
       if (right_text !== undefined && right_text !== null) {
@@ -854,7 +861,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
           processTemplate(template, $, row_class, null, function(template_result, element_id) {
             // match found, store element_id for template and json results (can be empty string)
             if (template_result !== null) {
-              if (json_results[table_row_id] === null) {
+              if (json_results[table_row_id] === undefined) {
                 json_results[table_row_id] = {};
                 json_templates[table_row_id] = {};
               }

@@ -5,23 +5,24 @@ ReceiptAttribute = require("./model/receipt_attribute");
 exports.applyCalculations = function(json_message, html, callback) {
   var $ = cheerio.load(html);
   var keys = Object.keys(json_message);
-  var grouped_keys = Object.keys(json_message.items);
+  var grouped_keys = [];
+//  var grouped_keys = Object.keys(json_message.items);
   var items_to_delete = [];
   async.series([
     // find default value for all independent receipt attributes
     function(series_callback) {
       async.eachSeries(keys, function(key, each_callback) {
-        if (key != "items" && key != "templates") {
+        if (key !== "items" && key !== "templates") {
           ReceiptAttribute.getReceiptAttributeByName(key, function(err, attribute) {
             if (err) {
               console.log(err.message);
             }
-            
-            if (attribute != null) {
+
+            if (attribute !== null) {
               async.series([
                 // find default value if no result was found
                 function(series_callback2) {
-                  if (json_message[key] == "") {
+                  if (json_message[key] === "") {
                     findDefaultValue(key, $.root().text(), function(result) {
                       json_message[key] = result;
                       series_callback2();
@@ -69,11 +70,11 @@ exports.applyCalculations = function(json_message, html, callback) {
             if (err) {
               console.log(err.message);
             }
-            if (attribute != null) {   
+            if (attribute !== null) {
               async.series([
                 // find default value if no result was found
                 function(series_callback2) {
-                  if (json_message.items[key][item_key] == "") {
+                  if (json_message.items[key][item_key] === "") {
                     findDefaultValue(item_key, function(result) {
                       json_message.items[key][item_key] = result;
                       series_callback2();
@@ -126,7 +127,7 @@ exports.applyCalculations = function(json_message, html, callback) {
     function(series_callback) {
       // remove receipt items that are invalid
       async.eachSeries(items_to_delete, function(delete_key, each_callback3) {
-        if (json_message.items[delete_key] != null) {
+        if (json_message.items[delete_key] !== null) {
           delete json_message.items[delete_key];
           delete json_message.templates.items[delete_key];
         }
@@ -152,7 +153,7 @@ function checkInvalidItem(item, callback) {
   // item is a string
   if (isNaN(parseInt(item)) && typeof(item) === "string") {
     item = item.toLowerCase();
-    if (item.indexOf("total") != -1 || item.indexOf("paid") != -1 || item.indexOf("pay") != -1 || item.indexOf("gift certificate") != -1) {
+    if (item.indexOf("total") !== -1 || item.indexOf("paid") !== -1 || item.indexOf("pay") !== -1 || item.indexOf("gift certificate") !== -1) {
       valid = false;
     }
   }
@@ -185,25 +186,25 @@ function convertAttributeDataType(result, datatype, callback) {
 }
 
 function convertDateTime(result, callback) {
-  if (result != "") {
+  if (result !== "") {
     var date = new Date(result);
     // date is not valid
     if (!isNaN(date.getTime())) {
       // year parsing
       var year = "" + date.getFullYear();
-      
+
       // month parsing
       var month = "" + (date.getMonth() + 1);
       if (month.length < 2) {
         month = "0" + month;
       }
-      
+
       // day parsing
       var day = "" + date.getDate();
       if (day.length < 2) {
         day = "0" + day;
       }
-      
+
       // resulting format - mm/dd/yyyy
       callback([month, day, year].join("/"));
     } else {
@@ -222,7 +223,7 @@ function convertString(result, callback) {
 function convertInteger(result, callback) {
   result = result.replace("[^\\d.-]", "").trim();
   var int_result = parseInt(result);
-  if (result != "" && !isNaN(int_result)) {
+  if (result !== "" && !isNaN(int_result)) {
     callback(int_result);
   } else {
     callback("1");
@@ -233,7 +234,7 @@ function convertInteger(result, callback) {
 function convertDecimal(result, callback) {
   result = result.replace("[^\\d.-]", "").trim();
   var float_result = parseFloat(result).toFixed(2);
-  if (result != "" && !isNaN(float_result)) {
+  if (result !== "" && !isNaN(float_result)) {
     callback(float_result);
   } else {
     callback("0.00");
@@ -274,7 +275,7 @@ function findDefaultDate(text, callback) {
   var date = new Date(), year_indices = [], year_found = true, new_year = true, date_string = "",
   target_year = date.getFullYear()-2, date_values = [],
   month_strings = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-  
+
   // what if years are 2 digit? (13, 14)
   async.series([
     // find all years in text
@@ -283,11 +284,11 @@ function findDefaultDate(text, callback) {
         function(whilst_callback) {
           var year_index = text.indexOf(target_year, (year_indices.length == 0 || new_year) ? null : year_indices[year_indices.length-1] + 1);
           year_found = false;
-          if (year_index != -1) {
+          if (year_index !== -1) {
             year_indices.push(year_index);
             year_found = true;
             new_year = false;
-          } else if (target_year != date.getFullYear()) {
+          } else if (target_year !== date.getFullYear()) {
             target_year++;
             year_found = true;
             new_year = true;
@@ -319,22 +320,22 @@ function findDefaultDate(text, callback) {
           each_callback();
           return;
         }
-        
+
         // date won't be split up by newlines
-        if (prev_text != null && prev_text.indexOf("\n") != -1) {
+        if (prev_text !== null && prev_text.indexOf("\n") !== -1) {
           prev_text = prev_text.substring(prev_text.indexOf("\n"));
         }
-        if (next_text != null && next_text.indexOf("\n") != -1) {
+        if (next_text !== null && next_text.indexOf("\n") !== -1) {
           next_text = next_text.substring(next_text.indexOf("\n"));
         }
-        
+
         // find matching month, then calculate for date
         var month_index = 0;
         async.eachSeries(month_strings, function(month_string, each_callback2) {
           var prev_index = prev_text.indexOf(month_string);
           var next_index = next_text.indexOf(month_string);
-          
-          if (prev_text != null && prev_index != -1) {
+
+          if (prev_text !== null && prev_index !== -1) {
             month = month_index;
             var sub_prev_text = prev_text.substring(0, prev_index).replace(/[^0-9]/g, "");
             var sub_next_text = prev_text.substring(prev_index).replace(/[^0-9]/g, "");
@@ -344,7 +345,7 @@ function findDefaultDate(text, callback) {
               day = sub_prev_text;
             }
             each_callback2(new Error("month match found"));
-          } else if (next_text != null && next_index != -1) {
+          } else if (next_text !== null && next_index !== -1) {
             month = month_index;
             var sub_prev_text = next_text.substring(0, next_index).replace(/[^0-9]/g, "");
             var sub_next_text = next_text.substring(next_index).replace(/[^0-9]/g, "");
@@ -362,10 +363,10 @@ function findDefaultDate(text, callback) {
           if (err) {
             console.log(err.message);
           }
-          
+
           // month string was not found, try numeric calculation
           // possible for numeric calculation to get wrong data if it passes month & date validity
-          if (month == null) {
+          if (month === null) {
             prev_text = prev_text.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
             var prev_nums = prev_text.split(" ");
             if (prev_nums.length > 1) {
@@ -380,8 +381,8 @@ function findDefaultDate(text, callback) {
               }
             }
           }
-          
-          if (month != null && month < 12 && day != null && day > 0 && day < 32) {
+
+          if (month !== null && month < 12 && day !== null && day > 0 && day < 32) {
             date_values.push(new Date(year, month, day));
           }
           each_callback();
@@ -397,7 +398,7 @@ function findDefaultDate(text, callback) {
     function(series_callback) {
       var current_date;
       async.eachSeries(date_values, function(date, each_callback) {
-        if (current_date == null) {
+        if (current_date === undefined) {
           current_date = date;
         } else if (date.getTime() - current_date.getTime() < 0) {
           current_date = date;
@@ -407,14 +408,14 @@ function findDefaultDate(text, callback) {
         if (err) {
           console.log(err.message);
         }
-        
+
         var month = current_date.getMonth() + 1;
         if (month < 10) {
           date_string = "0" + month;
         } else {
           date_string = "" + month;
         }
-        
+
         var day = current_date.getDate();
         if (day < 10) {
           date_string += "/0" + day + "/" + current_date.getFullYear();
@@ -437,7 +438,7 @@ function findDefaultDate(text, callback) {
 // domain name text? not always
 function findDefaultVendor(text, callback) {
   // last instance of .com? split by \n\t or space
-  
+
   callback("");
 }
 
@@ -460,12 +461,12 @@ function findDefaultItemQuantity(text, callback) {
 // largest non-negative monetary value
 function findDefaultTotal(text, callback) {
   // Rs. 584, Rs. 618.45, $354.34
-  // 
-  
+  //
+
   // look for $ symbols, etc. we don't know if $ is the currency used, but if it appears, then it is
   // ignore numbers that are too long. plain numbers don't work, transaction#, e-mail, date, number in item description, quantity
-  // 
-  
+  //
+
   // numbers, separated by spaces
   text = text.replace(/[^0-9.$\-]/g, " ").replace(/\s+/g, " ").replace(/[$]\s+/g, "$").replace(/[-]\s+/g, "-").trim();
   callback("0.00");

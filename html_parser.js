@@ -12,26 +12,46 @@ Url = require("./model/url"),
 SimpleTable = require("./model/simple_table");
 
 exports.generateTemplates = function(user_id, domain, url, html, attribute_data) {
-  var new_url, individual_attributes, grouped_attributes, keys, grouped_keys;
+  var new_url, individual_attributes, grouped_attributes = {}, keys, grouped_keys;
 
   individual_attributes = attribute_data;
-  if (attribute_data.items !== undefined) {
-    grouped_attributes = attribute_data.items;
-    delete individual_attributes.items;
-  } else {
-    grouped_attributes = {};
-  }
-
-  keys = Object.keys(individual_attributes);
-  grouped_keys = Object.keys(grouped_attributes);
-
-  // stop if no data was sent
-  if (keys === null || keys.length === 0) {
-    console.log("No attribute data sent");
-    return;
-  }
 
   async.series([
+    // calculate grouped attribute keys - grouped_attributes = { items: {}, other: {} }
+    function(callback) {
+      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(result_groups) {
+        if (result_groups !== null) {
+          async.eachSeries(result_groups, function(group, each_callback) {
+            if (attribute_data.hasOwnProperty(group.group_name)) {
+              grouped_attributes[group.group_name] = attribute_data[group.group_name];
+              delete individual_attributes[group.group_name];
+            }
+            each_callback();
+          }, function(err) {
+            if (err) {
+              console.log(err.message);
+            }
+            callback();
+          });
+        } else {
+          console.log("No receipt attribute groups found");
+          callback();
+        }
+      });
+    },
+    // check if attribute data is sent
+    function(callback) {
+      keys = Object.keys(individual_attributes);
+      grouped_keys = Object.keys(grouped_attributes);
+
+      // stop if no data was sent
+      if ((keys === null || keys.length === 0) && (grouped_keys === null || grouped_keys.length === 0)) {
+        console.log("No attribute data sent");
+        return;
+      } else {
+        callback();
+      }
+    },
     // create url id
     function(callback) {
       console.log("----------------URL----------------------");
@@ -65,10 +85,21 @@ exports.generateTemplates = function(user_id, domain, url, html, attribute_data)
     },
     // generate templates for each grouped attribute
     function(callback) {
-      if (grouped_keys !== null) {
-        async.eachSeries(grouped_keys,
-        function(key, each_callback) {
-          generateTemplateGroup(html, user_id, new_url.id, new_url.domain_id, grouped_attributes[key], key, each_callback);
+      if (grouped_keys !== undefined && grouped_keys !== null) {
+        async.eachSeries(grouped_keys, function(group_name, each_callback) {
+          if (grouped_attributes.hasOwnProperty(group_name)) {
+            async.eachSeries(Object.keys(grouped_attributes[group_name]), function(key, each_callback2) {
+              generateTemplateGroup(html, user_id, new_url.id, new_url.domain_id, group_name, grouped_attributes[group_name][key], key, each_callback2);
+            },
+            function(err) {
+              if (err) {
+                console.log(err.message);
+              }
+              each_callback();
+            });
+          } else {
+            each_callback();
+          }
         },
         function(err) {
           if (err) {
@@ -91,18 +122,22 @@ exports.generateTemplates = function(user_id, domain, url, html, attribute_data)
   });
 };
 
-function generateTemplateGroup(html, user_id, url_id, domain_id, attribute_group, index, template_callback) {
+function generateTemplateGroup(html, user_id, url_id, domain_id, group_name, attribute_group, index, template_callback) {
   var template_group_id, template_elements = [];
 
   async.series([
     // create template group
     function(callback) {
-      SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", "Receipt Items", function(group_id) {
-        var template_group = new TemplateGroup(null, domain_id, group_id, 1, null, 1, 1);
-        template_group.save(function(id) {
-          template_group_id = id;
-          callback();
-        });
+      SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", group_name, function(group_id) {
+        if (group_id !== null) {
+          var template_group = new TemplateGroup(null, domain_id, group_id, 1, null, 1, 1);
+          template_group.save(function(id) {
+            template_group_id = id;
+            callback();
+          });
+        } else {
+          callback(new Error("Receipt attribute group does not exist"));
+        }
       });
     },
     // generate templates for each grouped attribute

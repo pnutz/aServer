@@ -1,56 +1,84 @@
 var cheerio = require("cheerio"),
 async = require("async"),
-ReceiptAttribute = require("./model/receipt_attribute");
+ReceiptAttribute = require("./model/receipt_attribute"),
+SimpleTable = require("./model/simple_table");
 
 exports.applyCalculations = function(json_message, html, callback) {
+  console.log("----------------CALCULATION LAYER----------------------");
   var $ = cheerio.load(html);
-  var keys = Object.keys(json_message);
+  // hard copy json_message
+  var individual_attributes = JSON.parse(JSON.stringify(json_message));
+  delete individual_attributes["templates"];
+  var keys = [];
   var grouped_keys = [];
-//  var grouped_keys = Object.keys(json_message.items);
-  var items_to_delete = [];
+
   async.series([
-    // find default value for all independent receipt attributes
+    // remove grouped attr from individual_attributes and add them to grouped_keys
     function(series_callback) {
-      async.eachSeries(keys, function(key, each_callback) {
-        if (key !== "items" && key !== "templates") {
-          ReceiptAttribute.getReceiptAttributeByName(key, function(err, attribute) {
+      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(result_groups) {
+        if (result_groups !== null) {
+          async.eachSeries(result_groups, function(group, each_callback) {
+            if (json_message.hasOwnProperty(group.group_name)) {
+              grouped_keys.push(group);
+              delete individual_attributes[group.group_name];
+            }
+            each_callback();
+          },
+          function(err) {
             if (err) {
               console.log(err.message);
             }
+            series_callback();
+          });
+        } else {
+          console.log("No receipt attribute groups found");
+          series_callback();
+        }
+      });
+    },
+    // set keys from individual_attributes
+    function(series_callback) {
+      keys = Object.keys(individual_attributes);
+      series_callback();
+    },
+    // find default value for all independent receipt attributes
+    function(series_callback) {
+      async.eachSeries(keys, function(key, each_callback) {
+        ReceiptAttribute.getReceiptAttributeByName(key, function(err, attribute) {
+          if (err) {
+            console.log(err.message);
+          }
 
-            if (attribute !== null) {
-              async.series([
-                // find default value if no result was found
-                function(series_callback2) {
-                  if (json_message[key] === "") {
-                    findDefaultValue(key, $.root().text(), function(result) {
-                      json_message[key] = result;
-                      series_callback2();
-                    });
-                  } else {
-                    series_callback2();
-                  }
-                },
-                // convert values to correct datatype
-                function(series_callback2) {
-                  convertAttributeDataType(json_message[key], attribute.datatype, function(result) {
+          if (attribute !== null) {
+            async.series([
+              // find default value if no result was found
+              function(series_callback2) {
+                if (json_message[key] === "") {
+                  findDefaultValue(key, $.root().text(), function(result) {
                     json_message[key] = result;
                     series_callback2();
                   });
+                } else {
+                  series_callback2();
                 }
-              ], function(err) {
-                if (err) {
-                  console.log(err.message);
-                }
-                each_callback();
-              });
-            } else {
+              },
+              // convert values to correct datatype
+              function(series_callback2) {
+                convertAttributeDataType(json_message[key], attribute.datatype, function(result) {
+                  json_message[key] = result;
+                  series_callback2();
+                });
+              }
+            ], function(err) {
+              if (err) {
+                console.log(err.message);
+              }
               each_callback();
-            }
-          });
-        } else {
-          each_callback();
-        }
+            });
+          } else {
+            each_callback();
+          }
+        });
       },
       function(err) {
         if (err) {
@@ -61,78 +89,101 @@ exports.applyCalculations = function(json_message, html, callback) {
     },
     // find default value for all grouped receipt attributes
     function(series_callback) {
-      // loop through each receipt item
+      // loop through each receipt attribute group
       async.eachSeries(grouped_keys, function(key, each_callback) {
-        var item_keys = Object.keys(json_message.items[key]);
-        // loop through each receipt item attribute
-        async.eachSeries(item_keys, function(item_key, each_callback2) {
-          ReceiptAttribute.getReceiptAttributeByName(item_key, function(err, attribute) {
-            if (err) {
-              console.log(err.message);
-            }
-            if (attribute !== null) {
-              async.series([
-                // find default value if no result was found
-                function(series_callback2) {
-                  if (json_message.items[key][item_key] === "") {
-                    findDefaultValue(item_key, function(result) {
-                      json_message.items[key][item_key] = result;
-                      series_callback2();
-                    });
-                  }
-                  // check validity of receipt items
-                  else {
-                    checkInvalidItem(json_message.items[key][item_key], function(is_valid) {
-                      // if item is invalid, store key and item_key for deleting
-                      console.log("valid?: " + json_message.items[key][item_key] + " " + is_valid);
-                      if (!is_valid) {
-                        items_to_delete.push(key);
+        var group_attributes;
+        var items_to_delete = [];
+        async.series([
+          // get receipt attributes for receipt attribute group
+          function(series_callback2) {
+            ReceiptAttribute.getGroupedReceiptAttributes(key.id, function(attributes) {
+              if (attributes !== null) {
+                group_attributes = attributes;
+                series_callback2();
+              } else {
+                series_callback2(new Error(key.group_name + " receipt group has no attributes"));
+              }
+            });
+          },
+          // loop through receipt items for group in json_message
+          function(series_callback2) {
+            var item_keys = Object.keys(json_message[key.group_name]);
+            async.eachSeries(item_keys, function(item_key, each_callback2) {
+              // loop through each attribute in group for item
+              async.eachSeries(group_attributes, function(attr, each_callback3) {
+                if (attr.name !== "row") {
+                  async.series([
+                    function(series_callback3) {
+                      // if item contains attribute and it is a real value, check validity
+                      if (json_message[key.group_name][item_key].hasOwnProperty(attr.name) && json_message[key.group_name][item_key] !== "") {
+                        checkInvalidItem(json_message[key.group_name][item_key][attr.name], function(is_valid) {
+                          // if item is invalid, store key and item_key for deleting
+                          console.log("valid?: " + json_message[key.group_name][item_key][attr.name] + " " + is_valid);
+                          if (!is_valid) {
+                            items_to_delete.push(item_key);
+                          }
+                          series_callback3();
+                        });
                       }
-                      series_callback2();
-                    });
-                  }
-                },
-                // convert values to correct datatype
-                function(series_callback2) {
-                  convertAttributeDataType(json_message.items[key][item_key], attribute.datatype, function(result) {
-                    json_message.items[key][item_key] = result;
-                    series_callback2();
+                      // if item needs attribute
+                      else {
+                        findDefaultValue(attr.name, $.root().text(), function(result) {
+                          json_message[key.group_name][item_key][attr.name] = result;
+                          series_callback3();
+                        });
+                      }
+                    },
+                    // convert values to correct datatype
+                    function(series_callback3) {
+                      convertAttributeDataType(json_message[key.group_name][item_key][attr.name], attr.datatype, function(result) {
+                        json_message[key.group_name][item_key][attr.name] = result;
+                        series_callback3();
+                      });
+                    }
+                  ], function (err) {
+                    if (err) {
+                      console.log(err.message);
+                    }
+                    each_callback3();
                   });
+                } else {
+                  each_callback3();
                 }
-              ], function(err) {
+              },
+              function(err) {
                 if (err) {
                   console.log(err.message);
                 }
                 each_callback2();
               });
-            } else {
-              each_callback2();
-            }
-          });
-        },
-        function(err) {
+            },
+            function(err) {
+              if (err) {
+                console.log(err.message);
+              }
+              series_callback2();
+            });
+          }
+        ], function (err) {
           if (err) {
             console.log(err.message);
           }
-          each_callback();
+          // remove receipt items that are invalid
+          async.eachSeries(items_to_delete, function(delete_key, each_callback2) {
+            if (json_message[key.group_name][delete_key] !== null) {
+              delete json_message[key.group_name][delete_key];
+              delete json_message.templates[key.group_name][delete_key];
+            }
+            each_callback2();
+          }, function(err) {
+            if (err) {
+              console.log(err.message);
+            }
+            each_callback();
+          });
         });
       },
       function(err) {
-        if (err) {
-          console.log(err.message);
-        }
-        series_callback();
-      });
-    },
-    function(series_callback) {
-      // remove receipt items that are invalid
-      async.eachSeries(items_to_delete, function(delete_key, each_callback3) {
-        if (json_message.items[delete_key] !== null) {
-          delete json_message.items[delete_key];
-          delete json_message.templates.items[delete_key];
-        }
-        each_callback3();
-      }, function(err) {
         if (err) {
           console.log(err.message);
         }

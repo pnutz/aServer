@@ -913,7 +913,8 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
               processTemplate(template, $, row_class, row_element_id[template.id], function(template_result) {
                 // match found, store element_id for template and json results (can be empty string)
                 if (template_result !== null) {
-                  if (json_results[table_row_id] === null) {
+
+                  if (json_results[table_row_id] === undefined) {
                     json_results[table_row_id] = {};
                     json_templates[table_row_id] = {};
                   }

@@ -9,6 +9,7 @@ exports.applyCalculations = function(json_message, html, callback) {
   // hard copy json_message
   var individual_attributes = JSON.parse(JSON.stringify(json_message));
   delete individual_attributes["templates"];
+  delete individual_attributes["element_paths"];
   var keys = [];
   var grouped_keys = [];
 
@@ -173,6 +174,7 @@ exports.applyCalculations = function(json_message, html, callback) {
             if (json_message[key.group_name][delete_key] !== null) {
               delete json_message[key.group_name][delete_key];
               delete json_message.templates[key.group_name][delete_key];
+              delete json_message.element_paths[key.group_name][delete_key];
             }
             each_callback2();
           }, function(err) {

@@ -740,7 +740,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
     // construct selector path from body to root element
     function(callback) {
       // body element starts at 0
-      element_path.push(0);
+      //element_path.push(0);
 
       async.whilst(
         // whilst loop condition

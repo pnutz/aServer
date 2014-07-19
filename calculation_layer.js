@@ -498,8 +498,12 @@ function findDefaultDate($, text, text_nodes, callback) {
                       year_index = result;
                       series_callback2();
                     });
+                  } else {
+                    series_callback2();
                   }
                 }
+              } else {
+                series_callback2();
               }
             },
             // add date to date_values if all values are valid
@@ -508,17 +512,15 @@ function findDefaultDate($, text, text_nodes, callback) {
                 var ele_path;
                 // find element to add to date_values based on text nodes
                 if (year_index.start_node_index === year_index.end_node_index) {
-                  findElementPath($, text_nodes[year_index.start_node_index], function(path) {
-                    ele_path = path;
-                    date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
-                    series_callback2();
-                  });
+                  ele_path = findElementPath($, text_nodes[year_index.start_node_index]);
+                  date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
+                  series_callback2();
                 }
                 // text nodes are not the same, find parent element
                 else {
                   var node_parent = $(text_nodes[year_index.start_node_index].parent);
                   var second_parent = $(text_nodes[year_index.end_node_index].parent);
-                  async.whilst(function() { return !$.contains(element_node, second_parent) },
+                  async.whilst(function() { return !$.contains(node_parent, second_parent) || node_parent.name === "body"; },
                     function(whilst_callback) {
                       node_parent = node_parent.parent();
                       whilst_callback();
@@ -526,11 +528,9 @@ function findDefaultDate($, text, text_nodes, callback) {
                       if (err2) {
                         console.log(err2.message);
                       }
-                      findElementPath($, node_parent[0], function(path) {
-                        ele_path = path;
-                        date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
-                        series_callback2();
-                      });
+                      ele_path = findElementPath($, node_parent[0]);
+                      date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
+                      series_callback2();
                     }
                   );
                 }
@@ -646,17 +646,10 @@ function initializeContentSearch($, callback) {
   // iterate through all children of body element
   if ($(selector).length > 0) {
     var children = $(selector)[0].children;
-    async.eachSeries(children, function(child, each_callback) {
-      iterateText(child, initTextNodes, params, function(result_params) {
-        params = result_params;
-        each_callback();
-      });
-    }, function(err) {
-      if (err) {
-        console.log(err.message);
-      }
-      callback(params);
-    });
+    for (var i = 0; i < children.length; i++) {
+      params = iterateText(children[i], initTextNodes, params);
+    }
+    callback(params);
   } else {
     console.log("element does not exist. no text retrieved");
     callback();
@@ -664,18 +657,16 @@ function initializeContentSearch($, callback) {
 }
 
 // stores text node in param text_nodes and calls addText
-function initTextNodes(node, params, callback) {
+function initTextNodes(node, params) {
   params.text_nodes.push(node);
-  addText(node, params, function(result) {
-    params = result;
-    callback(params);
-  });
+  params = addText(node, params);
+  return params;
 }
 
 /* params:  text - total plain-text of all passed text nodes
 *           trim - true if the nodeValue will be trimmed before added to text
 */
-function addText(node, params, callback) {
+function addText(node, params) {
   var text = params.text;
   var trim = params.trim;
 
@@ -690,45 +681,30 @@ function addText(node, params, callback) {
   }
 
   params.text = text;
-  callback(params);
+  return params;
 }
 
-function iterateText(node, method, method_params, callback) {
+function iterateText(node, method, method_params) {
   // run method for non-whitespace text nodes
   if (node.type === "text" && /\S/.test(node.data)) {
-    method(node, method_params, function(result) {
-      method_params = result;
-      callback(method_params);
-    });
+    method_params = method(node, method_params);
   }
   // exception case to include whitespace text nodes
   else if (node.type === "text" && method_params.whitespace !== undefined) {
-    method(node, method_params, function(result) {
-      method_params = result;
-      callback(method_params);
-    });
+    method_params = method(node, method_params);
   }
   // iterateText through children of non-style/script elements
   else if (node.type === "tag" && node.children.length > 0 && !/(style|script)/i.test(node.name)) {
-    async.eachSeries(node.children, function(child, each_callback) {
-      iterateText(child, method, method_params, function(result) {
-        method_params = result;
-        each_callback();
-      });
-    }, function(err) {
-      if (err) {
-        console.log(err.message);
-      }
-      callback(method_params);
-    });
+    var children = node.children;
+    for (var i = 0; i < children.length; i++) {
+      method_params = iterateText(children[i], method, method_params);
+    }
   }
-  else {
-    callback(method_params);
-  }
+  return method_params;
 }
 
 // calculates the element_path from param node
-function findElementPath($, node, callback) {
+function findElementPath($, node) {
   if (node.type === "text") {
     node = node.parent;
   }
@@ -737,82 +713,63 @@ function findElementPath($, node, callback) {
   var parent_element = element.parent();
   var order;
 
-  async.whilst(function() { return parent_element.length > 0 && element[0].tag !== "body"; },
-    function(whilst_callback) {
-      inArray(element, parent_element.children(), function(index) {
-        order = index;
-        element_path.unshift(order);
-        element = parent_element;
-        parent_element = parent_element.parent();
-        whilst_callback();
-      });
-    }, function(err) {
-      element_path.unshift(0);
-      callback(element_path);
-    }
-  );
+  while (parent_element.length > 0 && element[0].name !== "body") {
+    order = inArray(element, parent_element.children());
+    element_path.unshift(order);
+    element = parent_element;
+    parent_element = parent_element.parent();
+  }
+  element_path.unshift(0);
+  return element_path;
 }
 
 // returns index of element within array
-function inArray(element, array, callback) {
+function inArray(element, array) {
   var index = 0;
-  async.eachSeries(array, function(el, each_callback) {
-    if (el === element[0]) {
-      each_callback(new Error("Found element inArray"));
+  for (var i = 0; i < array.length; i++) {
+    if (array[i] === element[0]) {
+      index = i;
+      console.log("Found element inArray");
+      break;
     }
-    index++;
-    each_callback();
-  }, function(err) {
-    if (err) {
-      console.log(err.message);
-    }
-    callback(index);
-  });
+  }
+  return index;
 }
 
 // find all instances of search_term in the document
 // returns a list of parent elements that contain the search_term
 function searchText(search_term, $, text, text_nodes, callback) {
   search_term = String(search_term);
-  occurrences(text, search_term, true, function(result) {
-    var total = result;
+  var total = occurrences(text, search_term, true);
 
-    if (total > 0) {
-      var params = {
-            "node_index": 0,
-            "search_term": search_term,
-            "search_elements": [],
-            "total": total,
-            "count": 0,
-            "text": "",
-            // holds last valid index
-            "current_index": -1,
-            "result": true,
-            "text_nodes": text_nodes,
-            "$": $
-          };
+  if (total > 0) {
+    var params = {
+      "node_index": 0,
+      "search_term": search_term,
+      "search_elements": [],
+      "total": total,
+      "count": 0,
+      "text": "",
+      // holds last valid index
+      "current_index": -1,
+      "result": true,
+      "text_nodes": text_nodes,
+      "$": $
+    };
 
-      // iterate through all children of body element
-      var children = $("body")[0].children;
-      async.eachSeries(children, function(child, each_callback) {
-        iterateText(child, findMatch, params, function(result_params) {
-          params = result_params;
-          if (params.result === false) {
-            each_callback(new Error("Found all " + search_term + " matches in document"));
-          } else {
-            each_callback();
-          }
-        });
-      }, function(err) {
-        if (err) {
-          console.log(err.message);
-        }
-        callback(params.search_elements);
-      });
-    } else {
-      callback();
+    // iterate through all children of body element
+    var children = $("body")[0].children;
+    for (var i = 0; i < children.length; i++) {
+      params = iterateText(children[i], findMatch, params);
+      if (params.result === false) {
+        console.log("Found all " + search_term + " matches in document");
+        break;
+      }
     }
-  });
+    callback(params.search_elements);
+  } else {
+    callback();
+  }
 }
 
 /* params: node_index - index in text_nodes iterated through
@@ -824,9 +781,9 @@ function searchText(search_term, $, text, text_nodes, callback) {
 *          current_index - holds last valid index
 *          result - set to false to break out of iterateText
 *          text_nodes - array of text nodes making up document text
-*          $ - jquery dom
+*          $ - jquery methods for page html
 */
-function findMatch(node, params, callback) {
+function findMatch(node, params) {
 
   var $ = params.$,
       node_value = node.data.trim(),
@@ -966,7 +923,7 @@ function findMatch(node, params, callback) {
     if (count === total) {
       console.log("Completed calculations for all matched search_terms");
       node_index++;
-      callback({
+      return ({
               "node_index": node_index,
               "search_term": search_term,
               "search_elements": search_elements,
@@ -978,11 +935,10 @@ function findMatch(node, params, callback) {
               "text_nodes": text_nodes,
               "$": $
             });
-      return;
     }
   }
   node_index++;
-  callback({
+  return ({
             "node_index": node_index,
             "search_term": search_term,
             "search_elements": search_elements,
@@ -1025,7 +981,7 @@ function alterSearchData(modify_from, change, data, text_nodes, callback) {
  * @param {String} subString    Required. The string to search for;
  * @param {Boolean} allowOverlapping    Optional. Default: false;
  */
-function occurrences(string, subString, allowOverlapping, callback){
+function occurrences(string, subString, allowOverlapping){
 
     string+="", subString+="";
     string = string.toLowerCase();
@@ -1041,5 +997,5 @@ function occurrences(string, subString, allowOverlapping, callback){
         pos=string.indexOf(subString,pos);
         if(pos>=0){ n++; pos+=step; } else break;
     }
-    callback(n);
+    return (n);
 }

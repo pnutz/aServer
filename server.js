@@ -22,9 +22,9 @@ function start()
   server = restify.createServer({name: "aServer"});
   server.use(restify.queryParser());
   server.use(restify.bodyParser());
-  // NOTE:Cross Origin Resource sharing, may or may not need this 
+  // NOTE:Cross Origin Resource sharing, may or may not need this
   // server.use(restify.CORS());
-  
+
   // Preconditions for all requests
   server.pre(function(req, res, next) {
     // Check the origin string
@@ -49,7 +49,7 @@ function start()
           var generated_data = JSON.parse(req.params.generated);
           var saved_data = JSON.parse(req.params.saved_data);
           setImmediate(probability.compareGeneratedSavedData(req.params.domain, generated_data, saved_data));
-          
+
           // send http request to WebApp
           setImmediate(parse.generateTemplates(req.params.userID, req.params.domain, req.params.url, req.params.html, attribute_data));
           res.header("Content-Type", "text/plain");
@@ -89,7 +89,7 @@ function start()
                                             function(json_message) {
                                               console.log(json_message);
                                               // 2nd layer calculations
-                                              layer.applyCalculations(json_message, req.params.html, function(altered_message) {
+                                              layer.applyCalculations(json_message, req.params.html, req.params.domain, function(altered_message) {
                                                 res.header("Content-Type", "text/plain");
                                                 console.log(altered_message);
                                                 res.send(200, JSON.stringify(altered_message));
@@ -110,7 +110,7 @@ function start()
 
     return next();
   });
-  
+
   // Start listening
   server.listen(port, ipAddr, function() {
     console.log("%s listening at %s", server.name, server.url);

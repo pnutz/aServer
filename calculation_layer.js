@@ -576,6 +576,9 @@ function iterateText(node, method, method_params) {
     var children = node.children;
     for (var i = 0; i < children.length; i++) {
       method_params = iterateText(children[i], method, method_params);
+      if (method_params.result != null && method_params.result === false) {
+        break;
+      }
     }
   }
   return method_params;

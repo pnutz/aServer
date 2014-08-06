@@ -39,74 +39,70 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
       // select all rows of ser_receipt_attribute that are not grouped
       ReceiptAttribute.getIndividualReceiptAttributes(function(attributes) {
         async.eachSeries(attributes, function(attr, each_callback) {
-          if (attr.name !== "total") {
-            attribute = attr.name;
-            console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
-            attribute_id = attr.id;
+          attribute = attr.name;
+          console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
+          attribute_id = attr.id;
 
-            // calculations for attribute
-            async.series([
-              // load all templates for attribute
-              function(series_callback) {
-                console.log("----------------LOAD TEMPLATES----------------------");
-                TemplateDomain.getTemplatesByDomain(domain_id, attribute_id, function(templates) {
-                  // found templates
-                  if (templates !== null && templates.length > 0) {
-                    _templates = templates;
-                  } else {
-                    _templates = null;
+          // calculations for attribute
+          async.series([
+            // load all templates for attribute
+            function(series_callback) {
+              console.log("----------------LOAD TEMPLATES----------------------");
+              TemplateDomain.getTemplatesByDomain(domain_id, attribute_id, function(templates) {
+                // found templates
+                if (templates !== null && templates.length > 0) {
+                  _templates = templates;
+                } else {
+                  _templates = null;
+                  json_message[attribute] = "";
+                }
+                series_callback();
+              });
+            },
+            // iterate through templates to find text
+            function(series_callback) {
+              if (_templates !== null) {
+                async.eachSeries(_templates, function(template, each_callback) {
+                  console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
+                  processTemplate(template, $, null, null, function(template_result, element_id, element_path) {
+                    if (template_result !== null && template_result !== "") {
+                      // return found text to add to message
+                      json_message[attribute] = template_result;
+                      json_message.templates[attribute] = template.id;
+                      json_message.element_paths[attribute] = element_path;
+                      each_callback(new Error(true));
+                    } else {
+                      TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
+                        if (template_domain !== null) {
+                          template_domain.total_count++;
+                          template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
+                          template_domain.save(each_callback);
+                        } else {
+                          each_callback();
+                        }
+                      });
+                    }
+                  });
+                }, function(err) {
+                  if (err && err.message !== "true") {
+                    json_message[attribute] = "";
+                    console.log(err.message);
+                  } else if (!err) {
                     json_message[attribute] = "";
                   }
                   series_callback();
                 });
-              },
-              // iterate through templates to find text
-              function(series_callback) {
-                if (_templates !== null) {
-                  async.eachSeries(_templates, function(template, each_callback) {
-                    console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
-                    processTemplate(template, $, null, null, function(template_result, element_id, element_path) {
-                      if (template_result !== null && template_result !== "") {
-                        // return found text to add to message
-                        json_message[attribute] = template_result;
-                        json_message.templates[attribute] = template.id;
-                        json_message.element_paths[attribute] = element_path;
-                        each_callback(new Error(true));
-                      } else {
-                        TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
-                          if (template_domain !== null) {
-                            template_domain.total_count++;
-                            template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
-                            template_domain.save(each_callback);
-                          } else {
-                            each_callback();
-                          }
-                        });
-                      }
-                    });
-                  }, function(err) {
-                    if (err && err.message !== "true") {
-                      json_message[attribute] = "";
-                      console.log(err.message);
-                    } else if (!err) {
-                      json_message[attribute] = "";
-                    }
-                    series_callback();
-                  });
-                } else {
-                  series_callback();
-                }
-              }
-            ], function(err, result) {
-              if (err) {
-                each_callback(new Error(err.message));
               } else {
-                each_callback();
+                series_callback();
               }
-            });
-          } else {
-            each_callback();
-          }
+            }
+          ], function(err, result) {
+            if (err) {
+              each_callback(new Error(err.message));
+            } else {
+              each_callback();
+            }
+          });
         }, function(err) {
           if (err) {
             callback(new Error(err.message));

@@ -66,7 +66,7 @@ exports.generateTemplates = function(user_id, domain, url, html, attribute_data)
     },
     // generate templates for each individual attribute
     function(callback) {
-      if (keys !== null) {
+      if (keys != null) {
         async.eachSeries(keys,
         function(key, each_callback) {
           generateTemplate(user_id, key, html,
@@ -85,7 +85,7 @@ exports.generateTemplates = function(user_id, domain, url, html, attribute_data)
     },
     // generate templates for each grouped attribute
     function(callback) {
-      if (grouped_keys !== undefined && grouped_keys !== null) {
+      if (grouped_keys != null) {
         async.eachSeries(grouped_keys, function(group_name, each_callback) {
           if (grouped_attributes.hasOwnProperty(group_name)) {
             async.eachSeries(Object.keys(grouped_attributes[group_name]), function(key, each_callback2) {
@@ -129,7 +129,7 @@ function generateTemplateGroup(html, user_id, url_id, domain_id, group_name, att
     // create template group
     function(callback) {
       SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", group_name, function(group_id) {
-        if (group_id !== null) {
+        if (group_id != null) {
           var template_group = new TemplateGroup(null, domain_id, group_id, 1, null, 1, 1);
           template_group.save(function(id) {
             template_group_id = id;

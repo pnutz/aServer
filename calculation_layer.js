@@ -414,7 +414,7 @@ function findDefaultDate($, text, text_nodes) {
 
           var month_index = next_text.indexOf(next_nums[0]) + next_nums[0].length;
           var day_index = next_text.indexOf(next_nums[1], month_index);
-          var end_change = month_index + day_index + next_nums[1].length
+          var end_change = month_index + day_index + next_nums[1].length;
           year_index = alterSearchData("end", end_change, year_index, text_nodes);
         }
       }
@@ -430,13 +430,13 @@ function findDefaultDate($, text, text_nodes) {
       }
       // text nodes are not the same, find parent element
       else {
-        var node_parent = $(text_nodes[year_index.start_node_index].parent);
-        var second_parent = $(text_nodes[year_index.end_node_index].parent);
-        while (!$.contains(node_parent, second_parent) || node_parent.name === "body") {
-          node_parent = node_parent.parent();
+        var node_parent = text_nodes[year_index.start_node_index].parent;
+        var second_parent = text_nodes[year_index.end_node_index].parent;
+        while (!$.contains(node_parent, second_parent) && node_parent !== second_parent && node_parent.name !== "body") {
+          node_parent = node_parent.parent;
         }
 
-        ele_path = findElementPath($, node_parent[0]);
+        ele_path = findElementPath($, node_parent);
         date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
       }
     }
@@ -757,8 +757,6 @@ function findMatch(node, params) {
         }
         target_parent = start_parent;
       }
-      /*console.log("target parent");
-      console.log(target_parent);*/
 
       // set start_node to node before the parent we are calculating with
       if (text_nodes_back_index !== -1) {

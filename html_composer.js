@@ -14,7 +14,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
   var domain_id, attribute, attribute_id, _templates, $, row_attribute_id, attribute_groups,
       grouped_data = {},
       // default create these attributes
-      json_message = { date: "", vendor: "", transaction: "", templates: {}, element_paths: {} };
+      json_message = { date: "", vendor: "", transaction: "", templates: {}, elementPaths: {} };
 
   async.series([
     // load domain
@@ -64,12 +64,12 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
               if (_templates !== null) {
                 async.eachSeries(_templates, function(template, each_callback) {
                   console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
-                  processTemplate(template, $, null, null, function(template_result, element_id, element_path) {
+                  processTemplate(template, $, null, null, function(template_result, element_id, elementPath) {
                     if (template_result !== null && template_result !== "") {
                       // return found text to add to message
                       json_message[attribute] = template_result;
                       json_message.templates[attribute] = template.id;
-                      json_message.element_paths[attribute] = element_path;
+                      json_message.elementPaths[attribute] = elementPath;
                       each_callback(new Error(true));
                     } else {
                       TemplateDomain.getTemplateDomainByIds(domain_id, template.id, function(template_domain) {
@@ -246,7 +246,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
             if (grouped_data[group.group_name] !== undefined) {
               var formatted_items = {};
               json_message.templates[group.group_name] = {};
-              json_message.element_paths[group.group_name] = {};
+              json_message.elementPaths[group.group_name] = {};
               var keys = Object.keys(grouped_data[group.group_name]);
               var non_row_index = 0;
               // grouped attribute keys, except row attribute
@@ -259,7 +259,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
 
                 // loop through each row in item
                 async.eachSeries(row_keys, function(row_key, each_callback2) {
-                  if (row_key !== "templates" && row_key !== "element_paths" && row_key !== "0") {
+                  if (row_key !== "templates" && row_key !== "elementPaths" && row_key !== "0") {
                     // row already exists, compare with selected row
                     if (formatted_items.hasOwnProperty(row_key)) {
                       // loop through each attribute to compare individual results
@@ -274,7 +274,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                                 // replace attribute
                                 formatted_items[row_key][attr] = grouped_data[group.group_name][key][row_key][attr];
                                 json_message.templates[group.group_name][row_key][attr] = grouped_data[group.group_name][key].templates[row_key][attr];
-                                json_message.element_paths[group.group_name][row_key] = grouped_data[group.group_name][key].element_paths;
+                                json_message.elementPaths[group.group_name][row_key] = grouped_data[group.group_name][key].elementPaths;
 
                                 if (template_domain !== null) {
                                   template_domain.total_count++;
@@ -303,7 +303,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                           if (grouped_data[group.group_name][key][row_key].hasOwnProperty(attr)) {
                             formatted_items[row_key][attr] = grouped_data[group.group_name][key][row_key][attr];
                             json_message.templates[group.group_name][row_key][attr] = grouped_data[group.group_name][key].templates[row_key][attr];
-                            json_message.element_paths[group.group_name][row_key] = grouped_data[group.group_name][key].element_paths;
+                            json_message.elementPaths[group.group_name][row_key] = grouped_data[group.group_name][key].elementPaths;
                           }
                           each_callback3();
                         }
@@ -318,7 +318,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                     else {
                       formatted_items[row_key] = grouped_data[group.group_name][key][row_key];
                       json_message.templates[group.group_name][row_key] = grouped_data[group.group_name][key].templates[row_key];
-                      json_message.element_paths[group.group_name][row_key] = grouped_data[group.group_name][key].element_paths;
+                      json_message.elementPaths[group.group_name][row_key] = grouped_data[group.group_name][key].elementPaths;
                       each_callback2();
                     }
                   }
@@ -413,7 +413,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
 
                           formatted_items[match_index] = grouped_data[group.group_name][key][row_key];
                           json_message.templates[group.group_name][match_index] = grouped_data[group.group_name][key].templates[row_key];
-                          json_message.element_paths[group.group_name][match_index] = grouped_data[group.group_name][key].element_paths;
+                          json_message.elementPaths[group.group_name][match_index] = grouped_data[group.group_name][key].elementPaths;
                           each_callback2();
                         });
                       }
@@ -447,7 +447,7 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
                       else {
                         formatted_items[non_row_index] = grouped_data[group.group_name][key][row_key];
                         json_message.templates[group.group_name][non_row_index] = grouped_data[group.group_name][key].templates[row_key];
-                        json_message.element_paths[group.group_name][non_row_index] = grouped_data[group.group_name][key].element_paths;
+                        json_message.elementPaths[group.group_name][non_row_index] = grouped_data[group.group_name][key].elementPaths;
                         non_row_index++;
                         each_callback2();
                       }
@@ -534,12 +534,12 @@ exports.readTemplate = function(userID, html, url, domain, json_callback) {
 
 // compares template with $ html dom, returns value if matches, null if doesn't match
 function processTemplate(template, $, match_class, body_element_id, callback) {
-  constructElementPath(template.id, $, match_class, body_element_id, function(selection, element_id, element_path) {
+  constructElementPath(template.id, $, match_class, body_element_id, function(selection, element_id, elementPath) {
     if (selection !== null) {
       // calculate text off of selection
       findTextSelection(template.id, selection, function(result) {
         if (result !== "") {
-          callback(result, element_id, element_path);
+          callback(result, element_id, elementPath);
         } else {
           callback(null);
         }
@@ -706,7 +706,7 @@ function findTextSelection(template_id, selection, func_callback) {
 // returns element_id of optional match_class.  if match_class is found while constructing path, element_id will be returned
 // returns array representing the element path, listing order of child elements where each index is an extra level from body
 function constructElementPath(template_id, $, match_class, body_element_id, func_callback) {
-  var element, selection, element_id, element_path = [];
+  var element, selection, element_id, elementPath = [];
   console.log("----------------CONSTRUCT ELEMENT PATH----------------------");
   async.series([
     // set element to template body_element
@@ -736,7 +736,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
     // construct selector path from body to root element
     function(callback) {
       // body element starts at 0
-      //element_path.push(0);
+      //elementPath.push(0);
 
       async.whilst(
         // whilst loop condition
@@ -762,7 +762,7 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
             },
             // select order (does not work with tag & attributes)
             function(series2_callback) {
-              element_path.push(element.order);
+              elementPath.push(element.order);
 
               selection = selection.eq(element.order);
               if (selection.length === 0) {
@@ -821,14 +821,14 @@ function constructElementPath(template_id, $, match_class, body_element_id, func
       console.log(err.message);
       func_callback(null);
     } else {
-      func_callback(result[result.length-1], element_id, element_path);
+      func_callback(result[result.length-1], element_id, elementPath);
     }
   });
 }
 
 // compares templates with $ html dom, returns all matched values, null if doesn't match
 function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grouped_attributes, callback) {
-  var table_row_id /* 0-0 */, row_class /* TwoReceipt0-0 */, sibling_rows, json_element_path,
+  var table_row_id /* 0-0 */, row_class /* TwoReceipt0-0 */, sibling_rows, json_elementPath,
       row_element_id = {},
       json_results = {},
       json_templates = {};
@@ -841,9 +841,9 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
       }
       async.each(templates, function(template, each_callback) {
         if (table_row_id !== 0 && template.attribute_id === row_attribute_id) {
-          constructElementPath(template.id, $, null, null, function(row_element, element_id, element_path) {
+          constructElementPath(template.id, $, null, null, function(row_element, element_id, elementPath) {
             if (row_element !== null) {
-              json_element_path = element_path;
+              json_elementPath = elementPath;
               row_class = row_element.attr("class");
               row_class = row_class.substring(row_class.indexOf("TwoReceipt"));
               table_row_id = row_class.substring("TwoReceipt".length);
@@ -874,7 +874,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
     function(series_callback) {
       async.eachSeries(templates, function(template, each_callback) {
         if (template.attribute_id !== row_attribute_id) {
-          processTemplate(template, $, row_class, null, function(template_result, element_id, element_path) {
+          processTemplate(template, $, row_class, null, function(template_result, element_id, elementPath) {
             // match found, store element_id for template and json results (can be empty string)
             if (template_result !== null) {
               if (json_results[table_row_id] === undefined) {
@@ -979,7 +979,7 @@ function processGroupedTemplates(templates, $, row_attribute_id, domain_id, grou
       callback(null);
     } else {
       json_results.templates = json_templates;
-      json_results.element_paths = json_element_path;
+      json_results.elementPaths = json_elementPath;
       callback(json_results);
     }
   });

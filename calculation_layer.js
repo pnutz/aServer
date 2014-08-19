@@ -3,60 +3,60 @@ async = require("async"),
 ReceiptAttribute = require("./model/receipt_attribute"),
 SimpleTable = require("./model/simple_table");
 
-exports.applyCalculations = function(json_message, html, domain, callback) {
+exports.applyCalculations = function(jsonMessage, html, domain, callback) {
   console.log("----------------CALCULATION LAYER----------------------");
   var $ = cheerio.load(html);
-  // hard copy json_message
-  var individual_attributes = JSON.parse(JSON.stringify(json_message));
-  delete individual_attributes["templates"];
-  delete individual_attributes["element_paths"];
+  // hard copy jsonMessage
+  var individualAttributes = JSON.parse(JSON.stringify(jsonMessage));
+  delete individualAttributes["templates"];
+  delete individualAttributes["elementPaths"];
   var keys = [];
-  var grouped_keys = [];
-  var document_text = "";
-  var text_nodes = [];
+  var groupedKeys = [];
+  var documentText = "";
+  var textNodes = [];
 
   async.series([
-    // remove grouped attr from individual_attributes and add them to grouped_keys
-    function(series_callback) {
-      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(result_groups) {
-        if (result_groups !== null) {
-          async.eachSeries(result_groups, function(group, each_callback) {
-            if (json_message.hasOwnProperty(group.group_name)) {
-              grouped_keys.push(group);
-              delete individual_attributes[group.group_name];
+    // remove grouped attr from individualAttributes and add them to groupedKeys
+    function(seriesCallback) {
+      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(resultGroups) {
+        if (resultGroups !== null) {
+          async.eachSeries(resultGroups, function(group, eachCallback) {
+            if (jsonMessage.hasOwnProperty(group.group_name)) {
+              groupedKeys.push(group);
+              delete individualAttributes[group.group_name];
             }
-            each_callback();
+            eachCallback();
           },
           function(err) {
             if (err) {
               console.log(err.message);
             }
-            series_callback();
+            seriesCallback();
           });
         } else {
           console.log("No receipt attribute groups found");
-          series_callback();
+          seriesCallback();
         }
       });
     },
-    // set keys from individual_attributes
-    function(series_callback) {
-      keys = Object.keys(individual_attributes);
-      series_callback();
+    // set keys from individualAttributes
+    function(seriesCallback) {
+      keys = Object.keys(individualAttributes);
+      seriesCallback();
     },
-    // initialize text nodes and document_text
-    function(series_callback) {
+    // initialize text nodes and documentText
+    function(seriesCallback) {
       initializeContentSearch($, function(results) {
         if (results != null) {
-          document_text = results.text;
-          text_nodes = results.text_nodes;
+          documentText = results.text;
+          textNodes = results.textNodes;
         }
-        series_callback();
+        seriesCallback();
       });
     },
     // find default value for all independent receipt attributes
-    function(series_callback) {
-      async.eachSeries(keys, function(key, each_callback) {
+    function(seriesCallback) {
+      async.eachSeries(keys, function(key, eachCallback) {
         ReceiptAttribute.getReceiptAttributeByName(key, function(err, attribute) {
           if (err) {
             console.log(err.message);
@@ -64,116 +64,116 @@ exports.applyCalculations = function(json_message, html, domain, callback) {
 
           if (attribute != null) {
             // find default value if no result was found
-            if (json_message[key] === "") {
-              var result = findDefaultValue($, key, document_text, domain, text_nodes);
+            if (jsonMessage[key] === "") {
+              var result = findDefaultValue($, key, documentText, domain, textNodes);
               if (result != null && result.value !== "") {
-                json_message[key] = result.value;
+                jsonMessage[key] = result.value;
 
-                if (result.element_path != null) {
-                  json_message.element_paths[key] = result.element_path;
+                if (result.elementPath != null) {
+                  jsonMessage.elementPaths[key] = result.elementPath;
                 }
               }
 
               // convert values to correct datatype
-              result = convertAttributeDataType(json_message[key], attribute.datatype);
-              json_message[key] = result;
+              result = convertAttributeDataType(jsonMessage[key], attribute.datatype);
+              jsonMessage[key] = result;
               if (result === "") {
-                delete json_message.element_paths[key];
+                delete jsonMessage.elementPaths[key];
               }
             }
           }
-          each_callback();
+          eachCallback();
         });
       },
       function(err) {
         if (err) {
           console.log(err.message);
         }
-        series_callback();
+        seriesCallback();
       });
     },
     // find default value for all grouped receipt attributes
-    function(series_callback) {
+    function(seriesCallback) {
       // loop through each receipt attribute group
-      async.eachSeries(grouped_keys, function(key, each_callback) {
-        var group_attributes;
-        var items_to_delete = [];
+      async.eachSeries(groupedKeys, function(key, eachCallback) {
+        var groupAttributes;
+        var itemsToDelete = [];
         async.series([
           // get receipt attributes for receipt attribute group
-          function(series_callback2) {
+          function(seriesCallback2) {
             ReceiptAttribute.getGroupedReceiptAttributes(key.id, function(attributes) {
               if (attributes !== null) {
-                group_attributes = attributes;
-                series_callback2();
+                groupAttributes = attributes;
+                seriesCallback2();
               } else {
-                series_callback2(new Error(key.group_name + " receipt group has no attributes"));
+                seriesCallback2(new Error(key.group_name + " receipt group has no attributes"));
               }
             });
           },
-          // loop through receipt items for group in json_message
-          function(series_callback2) {
-            var item_keys = Object.keys(json_message[key.group_name]);
+          // loop through receipt items for group in jsonMessage
+          function(seriesCallback2) {
+            var itemKeys = Object.keys(jsonMessage[key.group_name]);
 
-            for (var i = 0; i < item_keys.length; i++) {
-              var item_key = item_keys[i];
+            for (var i = 0; i < itemKeys.length; i++) {
+              var itemKey = itemKeys[i];
 
               // loop through each attribute in group for item
-              for (var j = 0; j < group_attributes.length; j++) {
-                var attr = group_attributes[j];
+              for (var j = 0; j < groupAttributes.length; j++) {
+                var attr = groupAttributes[j];
 
                 if (attr !== "row") {
                   // if item contains attribute and it is a real value, check validity
-                  if (json_message[key.group_name][item_key].hasOwnProperty(attr.name) && json_message[key.group_name][item_key] !== "") {
-                    var is_valid = checkInvalidItem(json_message[key.group_name][item_key][attr.name]);
-                    // if item is invalid, store key and item_key for deleting
-                    console.log("valid?: " + json_message[key.group_name][item_key][attr.name] + " " + is_valid);
-                    if (!is_valid) {
-                      items_to_delete.push(item_key);
+                  if (jsonMessage[key.group_name][itemKey].hasOwnProperty(attr.name) && jsonMessage[key.group_name][itemKey] !== "") {
+                    var isValid = checkInvalidItem(jsonMessage[key.group_name][itemKey][attr.name]);
+                    // if item is invalid, store key and itemKey for deleting
+                    console.log("valid?: " + jsonMessage[key.group_name][itemKey][attr.name] + " " + isValid);
+                    if (!isValid) {
+                      itemsToDelete.push(itemKey);
                     }
                   }
                   // if item needs attribute
                   else {
-                    var result = findDefaultValue($, attr.name, document_text, domain, text_nodes);
+                    var result = findDefaultValue($, attr.name, documentText, domain, textNodes);
                     if (result != null) {
-                      json_message[key.group_name][item_key][attr.name] = result.value;
+                      jsonMessage[key.group_name][itemKey][attr.name] = result.value;
                     }
                   }
 
                   // convert values to correct datatype
-                  json_message[key.group_name][item_key][attr.name] = convertAttributeDataType(json_message[key.group_name][item_key][attr.name], attr.datatype);
+                  jsonMessage[key.group_name][itemKey][attr.name] = convertAttributeDataType(jsonMessage[key.group_name][itemKey][attr.name], attr.datatype);
                 }
               }
             }
-            series_callback2();
+            seriesCallback2();
           }
         ], function (err) {
           if (err) {
             console.log(err.message);
           }
           // remove receipt items that are invalid
-          for (var i = 0; i < items_to_delete.length; i++) {
-            var delete_key = items_to_delete[i];
-            if (json_message[key.group_name][delete_key] !== null) {
-              delete json_message[key.group_name][delete_key];
-              delete json_message.templates[key.group_name][delete_key];
-              delete json_message.element_paths[key.group_name][delete_key];
+          for (var i = 0; i < itemsToDelete.length; i++) {
+            var deleteKey = itemsToDelete[i];
+            if (jsonMessage[key.group_name][deleteKey] !== null) {
+              delete jsonMessage[key.group_name][deleteKey];
+              delete jsonMessage.templates[key.group_name][deleteKey];
+              delete jsonMessage.elementPaths[key.group_name][deleteKey];
             }
           }
-          each_callback();
+          eachCallback();
         });
       },
       function(err) {
         if (err) {
           console.log(err.message);
         }
-        series_callback();
+        seriesCallback();
       });
     }
   ], function(err, result) {
     if (err) {
       console.log(err.message);
     }
-    callback(json_message);
+    callback(jsonMessage);
   });
 };
 
@@ -250,9 +250,9 @@ function convertString(result) {
 // default quantity is 1
 function convertInteger(result) {
   result = result.replace("[^\\d.-]", "").trim();
-  var int_result = parseInt(result);
-  if (result !== "" && !isNaN(int_result)) {
-    return int_result;
+  var intResult = parseInt(result);
+  if (result !== "" && !isNaN(intResult)) {
+    return intResult;
   }
   return "1";
 }
@@ -260,38 +260,38 @@ function convertInteger(result) {
 // default price is 0
 function convertDecimal(result) {
   result = result.replace("[^\\d.-]", "").trim();
-  var float_result = parseFloat(result).toFixed(2);
-  if (result !== "" && !isNaN(float_result)) {
-    return float_result;
+  var floatResult = parseFloat(result).toFixed(2);
+  if (result !== "" && !isNaN(floatResult)) {
+    return floatResult;
   }
   return "0.00";
 }
 
-function findDefaultValue($, attribute, text, domain, text_nodes) {
+function findDefaultValue($, attribute, text, domain, textNodes) {
   var result = null;
 
   switch(attribute)
   {
   case "date":
-    result = findDefaultDate($, text, text_nodes);
+    result = findDefaultDate($, text, textNodes);
     break;
   case "vendor":
-    result = findDefaultVendor($, text, domain, text_nodes);
+    result = findDefaultVendor($, text, domain, textNodes);
     break;
   case "transaction":
-    result = findDefaultTransaction($, text, text_nodes);
+    result = findDefaultTransaction($, text, textNodes);
     break;
   case "itemtype":
-    result = findDefaultItemName($, text, text_nodes);
+    result = findDefaultItemName($, text, textNodes);
     break;
   case "cost":
-    result = findDefaultItemCost($, text, text_nodes);
+    result = findDefaultItemCost($, text, textNodes);
     break;
   case "quantity":
-    result = findDefaultItemQuantity($, text, text_nodes);
+    result = findDefaultItemQuantity($, text, textNodes);
     break;
   case "total":
-    result = findDefaultTotal($, text, text_nodes);
+    result = findDefaultTotal($, text, textNodes);
     break;
   default:
     break;
@@ -300,210 +300,210 @@ function findDefaultValue($, attribute, text, domain, text_nodes) {
 }
 
 // to avoid shipping date, take earliest found date
-function findDefaultDate($, text, text_nodes) {
+function findDefaultDate($, text, textNodes) {
   var date = new Date(),
-      year_indices = [],
-      date_string = "",
-      element_path = [],
-      date_values = [],
-      month_strings = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+      yearIndices = [],
+      dateString = "",
+      elementPath = [],
+      dateValues = [],
+      monthStrings = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
   // what if years are 2 digit? (13, 14)
   // find all years in text
-  var target_year = date.getFullYear() - 2;
+  var targetYear = date.getFullYear() - 2;
   // iterate through each year
-  while (target_year !== date.getFullYear() + 1) {
-    var result = searchText(target_year, $, text, text_nodes);
+  while (targetYear !== date.getFullYear() + 1) {
+    var result = searchText(targetYear, $, text, textNodes);
     if (result != null) {
-      year_indices = year_indices.concat(result);
+      yearIndices = yearIndices.concat(result);
     }
-    target_year++;
+    targetYear++;
   }
 
   // process text by year to try and find date
-  for (var i = 0; i < year_indices.length; i++) {
-    var year_index = year_indices[i];
+  for (var i = 0; i < yearIndices.length; i++) {
+    var yearIndex = yearIndices[i];
 
-    var prev_text, next_text;
-    var year = text.substring(year_index.index, year_index.index + 4);
+    var prevText, nextText;
+    var year = text.substring(yearIndex.index, yearIndex.index + 4);
     var month, day;
     // split by newline
-    if (year_index.index - 14 > 0 && year_index.index + 18 < text.length) {
-      prev_text = text.substring(year_index.index - 14, year_index.index).toLowerCase();
-      next_text = text.substring(year_index.index + 4, year_index.index + 18).toLowerCase();
-    } else if (year_index.index - 14 > 0) {
-      prev_text = text.substring(year_index.index - 14, year_index.index).toLowerCase();
-    } else if (year_index.index + 18 < text.length) {
-      next_text = text.substring(year_index.index + 4, year_index.index + 18).toLowerCase()
+    if (yearIndex.index - 14 > 0 && yearIndex.index + 18 < text.length) {
+      prevText = text.substring(yearIndex.index - 14, yearIndex.index).toLowerCase();
+      nextText = text.substring(yearIndex.index + 4, yearIndex.index + 18).toLowerCase();
+    } else if (yearIndex.index - 14 > 0) {
+      prevText = text.substring(yearIndex.index - 14, yearIndex.index).toLowerCase();
+    } else if (yearIndex.index + 18 < text.length) {
+      nextText = text.substring(yearIndex.index + 4, yearIndex.index + 18).toLowerCase()
     } else {
       continue;
     }
 
     // date won't be split up by newlines
-    if (prev_text != null && prev_text.indexOf("\n") !== -1) {
-      prev_text = prev_text.substring(prev_text.indexOf("\n"));
+    if (prevText != null && prevText.indexOf("\n") !== -1) {
+      prevText = prevText.substring(prevText.indexOf("\n"));
     }
-    if (next_text != null && next_text.indexOf("\n") !== -1) {
-      next_text = next_text.substring(0, next_text.indexOf("\n"));
+    if (nextText != null && nextText.indexOf("\n") !== -1) {
+      nextText = nextText.substring(0, nextText.indexOf("\n"));
     }
 
     // find matching month, then calculate for date
-    var month_index = 0;
+    var monthIndex = 0;
 
-    for (var j = 0; j < month_strings.length; j++) {
-      var month_string = month_strings[j];
+    for (var j = 0; j < monthStrings.length; j++) {
+      var monthString = monthStrings[j];
 
-      var prev_index = prev_text.indexOf(month_string);
-      var next_index = next_text.indexOf(month_string);
+      var prevIndex = prevText.indexOf(monthString);
+      var nextIndex = nextText.indexOf(monthString);
 
-      if (prev_text != null && prev_index !== -1) {
-        month = month_index;
-        var sub_prev_text = prev_text.substring(0, prev_index).replace(/[^0-9]/g, "");
-        var sub_next_text = prev_text.substring(prev_index).replace(/[^0-9]/g, "");
-        if (parseInt(sub_next_text) > 0 && parseInt(sub_next_text) < 32) {
-          day = sub_next_text;
-          var start_change = prev_text.length - prev_index;
-          year_index = alterSearchData("start", start_change, year_index, text_nodes);
-        } else if (parseInt(sub_prev_text) > 0 && parseInt(sub_prev_text) < 32) {
-          day = sub_prev_text;
-          // find index of sub_prev_text in prev_text
-          var day_index = prev_text.indexOf(sub_prev_text);
-          var end_change = prev_text.length - day_index;
-          year_index = alterSearchData("end", end_change, year_index, text_nodes);
+      if (prevText != null && prevIndex !== -1) {
+        month = monthIndex;
+        var subPrevText = prevText.substring(0, prevIndex).replace(/[^0-9]/g, "");
+        var subNextText = prevText.substring(prevIndex).replace(/[^0-9]/g, "");
+        if (parseInt(subNextText) > 0 && parseInt(subNextText) < 32) {
+          day = subNextText;
+          var startChange = prevText.length - prevIndex;
+          yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
+        } else if (parseInt(subPrevText) > 0 && parseInt(subPrevText) < 32) {
+          day = subPrevText;
+          // find index of subPrevText in prevText
+          var dayIndex = prevText.indexOf(subPrevText);
+          var endChange = prevText.length - dayIndex;
+          yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
         }
-      } else if (next_text != null && next_index !== -1) {
-        month = month_index;
-        var sub_prev_text = next_text.substring(0, next_index).replace(/[^0-9]/g, "");
-        var sub_next_text = next_text.substring(next_index + month_string.length).replace(/[^0-9]/g, "");
-        if (parseInt(sub_next_text) > 0 && parseInt(sub_next_text) < 32) {
-          day = parseInt(sub_next_text);
-          var day_index = next_text.substring(next_index + month_string.length).indexOf(sub_next_text);
-          var end_change = next_index + day_index + sub_next_text.length;
-          year_index = alterSearchData("end", end_change, year_index, text_nodes);
-        } else if (parseInt(sub_prev_text) > 0 && parseInt(sub_prev_text) < 32) {
-          day = parseInt(sub_prev_text);
-          var start_change = next_index;
-          year_index = alterSearchData("start", start_change, year_index, text_nodes);
+      } else if (nextText != null && nextIndex !== -1) {
+        month = monthIndex;
+        var subPrevText = nextText.substring(0, nextIndex).replace(/[^0-9]/g, "");
+        var subNextText = nextText.substring(nextIndex + monthString.length).replace(/[^0-9]/g, "");
+        if (parseInt(subNextText) > 0 && parseInt(subNextText) < 32) {
+          day = parseInt(subNextText);
+          var dayIndex = nextText.substring(nextIndex + monthString.length).indexOf(subNextText);
+          var endChange = nextIndex + dayIndex + subNextText.length;
+          yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
+        } else if (parseInt(subPrevText) > 0 && parseInt(subPrevText) < 32) {
+          day = parseInt(subPrevText);
+          var startChange = nextIndex;
+          yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
         }
       } else {
-        month_index++;
+        monthIndex++;
       }
     }
 
     // month string was not found, try numeric calculation
     // possible for numeric calculation to get wrong data if it passes month & date validity
     if (month == null) {
-      prev_text = prev_text.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
-      var prev_nums = prev_text.split(" ");
-      if (prev_nums.length > 1) {
-        var original_month = parseInt(prev_nums[prev_nums.length - 2]);
-        month = original_month - 1;
-        day = parseInt(prev_nums[prev_nums.length - 1]);
+      prevText = prevText.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
+      var prevNums = prevText.split(" ");
+      if (prevNums.length > 1) {
+        var originalMonth = parseInt(prevNums[prevNums.length - 2]);
+        month = originalMonth - 1;
+        day = parseInt(prevNums[prevNums.length - 1]);
 
-        var day_index = prev_text.lastIndexOf(prev_nums[prev_nums.length - 1]) - 1;
-        var month_index = prev_text.lastIndexOf(prev_nums[prev_nums.length - 2], day_index);
-        var start_change = prev_text.length - month_index;
-        year_index = alterSearchData("start", start_change, year_index, text_nodes);
+        var dayIndex = prevText.lastIndexOf(prevNums[prevNums.length - 1]) - 1;
+        var monthIndex = prevText.lastIndexOf(prevNums[prevNums.length - 2], dayIndex);
+        var startChange = prevText.length - monthIndex;
+        yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
       } else {
-        next_text = next_text.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
-        var next_nums = next_text.split(" ");
-        if (next_nums.length > 1) {
-          var original_month = parseInt(next_nums[0]);
-          month = original_month - 1;
-          day = parseInt(next_nums[1]);
+        nextText = nextText.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
+        var nextNums = nextText.split(" ");
+        if (nextNums.length > 1) {
+          var originalMonth = parseInt(nextNums[0]);
+          month = originalMonth - 1;
+          day = parseInt(nextNums[1]);
 
-          var month_index = next_text.indexOf(next_nums[0]) + next_nums[0].length;
-          var day_index = next_text.indexOf(next_nums[1], month_index);
-          var end_change = month_index + day_index + next_nums[1].length;
-          year_index = alterSearchData("end", end_change, year_index, text_nodes);
+          var monthIndex = nextText.indexOf(nextNums[0]) + nextNums[0].length;
+          var dayIndex = nextText.indexOf(nextNums[1], monthIndex);
+          var endChange = monthIndex + dayIndex + nextNums[1].length;
+          yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
         }
       }
     }
 
-    // add date to date_values if all values are valid
+    // add date to dateValues if all values are valid
     if (month != null && month < 12 && day !== null && day > 0 && day < 32) {
-      var ele_path;
-      // find element to add to date_values based on text nodes
-      if (year_index.start_node_index === year_index.end_node_index) {
-        ele_path = findElementPath($, text_nodes[year_index.start_node_index]);
-        date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
+      var elePath;
+      // find element to add to dateValues based on text nodes
+      if (yearIndex.startNodeIndex === yearIndex.endNodeIndex) {
+        elePath = findElementPath($, textNodes[yearIndex.startNodeIndex]);
+        dateValues.push({ date: new Date(year, month, day), elementPath: elePath });
       }
       // text nodes are not the same, find parent element
       else {
-        var node_parent = text_nodes[year_index.start_node_index].parent;
-        var second_parent = text_nodes[year_index.end_node_index].parent;
-        while (!$.contains(node_parent, second_parent) && node_parent !== second_parent && node_parent.name !== "body") {
-          node_parent = node_parent.parent;
+        var nodeParent = textNodes[yearIndex.startNodeIndex].parent;
+        var secondParent = textNodes[yearIndex.endNodeIndex].parent;
+        while (!$.contains(nodeParent, secondParent) && nodeParent !== secondParent && nodeParent.name !== "body") {
+          nodeParent = nodeParent.parent;
         }
 
-        ele_path = findElementPath($, node_parent);
-        date_values.push({ "date": new Date(year, month, day), "element_path": ele_path });
+        elePath = findElementPath($, nodeParent);
+        dateValues.push({ date: new Date(year, month, day), elementPath: elePath });
       }
     }
   }
 
-  var current_date;
-  for (var i = 0; i < date_values.length; i++) {
-    var value = date_values[i];
-    if (current_date == null) {
-      current_date = value.date;
-      element_path = value.element_path;
-    } else if (value.date.getTime() - current_date.getTime() < 0) {
-      current_date = value.date;
-      element_path = value.element_path;
+  var currentDate;
+  for (var i = 0; i < dateValues.length; i++) {
+    var value = dateValues[i];
+    if (currentDate == null) {
+      currentDate = value.date;
+      elementPath = value.elementPath;
+    } else if (value.date.getTime() - currentDate.getTime() < 0) {
+      currentDate = value.date;
+      elementPath = value.elementPath;
     }
   }
 
-  if (current_date != null) {
-    var month = current_date.getMonth() + 1;
+  if (currentDate != null) {
+    var month = currentDate.getMonth() + 1;
     if (month < 10) {
-      date_string = "0" + month;
+      dateString = "0" + month;
     } else {
-      date_string = "" + month;
+      dateString = "" + month;
     }
 
-    var day = current_date.getDate();
+    var day = currentDate.getDate();
     if (day < 10) {
-      date_string += "/0" + day + "/" + current_date.getFullYear();
+      dateString += "/0" + day + "/" + currentDate.getFullYear();
     } else {
-      date_string += "/" + day + "/" + current_date.getFullYear();
+      dateString += "/" + day + "/" + currentDate.getFullYear();
     }
   }
 
-  if (date_string.length >= 10) {
-    return { value: date_string, element_path: element_path }
+  if (dateString.length >= 10) {
+    return { value: dateString, elementPath: elementPath }
   } else {
     return null;
   }
 }
 
 // domain name text? not always
-function findDefaultVendor($, text, domain, text_nodes) {
+function findDefaultVendor($, text, domain, textNodes) {
   if (domain.indexOf("www.") === 0) {
     domain = domain.substring(4);
   }
   domain = domain.charAt(0).toUpperCase() + domain.slice(1);
-  return { value: domain, element_path: null };
+  return { value: domain, elementPath: null };
 }
 
-function findDefaultTransaction($, text, text_nodes) {
-  return { value: "", element_path: null };
+function findDefaultTransaction($, text, textNodes) {
+  return { value: "", elementPath: null };
 }
 
-function findDefaultItemName($, text, text_nodes) {
-  return { value: "", element_path: null };
+function findDefaultItemName($, text, textNodes) {
+  return { value: "", elementPath: null };
 }
 
-function findDefaultItemCost($, text, text_nodes) {
-  return { value: "0.00", element_path: null };
+function findDefaultItemCost($, text, textNodes) {
+  return { value: "0.00", elementPath: null };
 }
 
-function findDefaultItemQuantity($, text, text_nodes) {
-  return { value: "1", element_path: null };
+function findDefaultItemQuantity($, text, textNodes) {
+  return { value: "1", elementPath: null };
 }
 
 // largest non-negative monetary value
-function findDefaultTotal($, text, text_nodes) {
+function findDefaultTotal($, text, textNodes) {
   // Rs. 584, Rs. 618.45, $354.34
   //
 
@@ -513,13 +513,13 @@ function findDefaultTotal($, text, text_nodes) {
 
   // numbers, separated by spaces
   //text = text.replace(/[^0-9.$\-]/g, " ").replace(/\s+/g, " ").replace(/[$]\s+/g, "$").replace(/[-]\s+/g, "-").trim();
-  return { value: "0.00", element_path: null };
+  return { value: "0.00", elementPath: null };
 }
 
-// initializes text_nodes and retrieves document text
+// initializes textNodes and retrieves document text
 function initializeContentSearch($, callback) {
   var selector = "body",
-      params = { "text": "", "trim": true, "text_nodes": [] };
+      params = { "text": "", "trim": true, "textNodes": [] };
 
   // iterate through all children of body element
   if ($(selector).length > 0) {
@@ -534,9 +534,9 @@ function initializeContentSearch($, callback) {
   }
 }
 
-// stores text node in param text_nodes and calls addText
+// stores text node in param textNodes and calls addText
 function initTextNodes(node, params) {
-  params.text_nodes.push(node);
+  params.textNodes.push(node);
   params = addText(node, params);
   return params;
 }
@@ -562,46 +562,46 @@ function addText(node, params) {
   return params;
 }
 
-function iterateText(node, method, method_params) {
+function iterateText(node, method, methodParams) {
   // run method for non-whitespace text nodes
   if (node.type === "text" && /\S/.test(node.data)) {
-    method_params = method(node, method_params);
+    methodParams = method(node, methodParams);
   }
   // exception case to include whitespace text nodes
-  else if (node.type === "text" && method_params.whitespace !== undefined) {
-    method_params = method(node, method_params);
+  else if (node.type === "text" && methodParams.whitespace !== undefined) {
+    methodParams = method(node, methodParams);
   }
   // iterateText through children of non-style/script elements
   else if (node.type === "tag" && node.children.length > 0 && !/(style|script)/i.test(node.name)) {
     var children = node.children;
     for (var i = 0; i < children.length; i++) {
-      method_params = iterateText(children[i], method, method_params);
-      if (method_params.result != null && method_params.result === false) {
+      methodParams = iterateText(children[i], method, methodParams);
+      if (methodParams.result != null && methodParams.result === false) {
         break;
       }
     }
   }
-  return method_params;
+  return methodParams;
 }
 
-// calculates the element_path from param node
+// calculates the elementPath from param node
 function findElementPath($, node) {
   if (node.type === "text") {
     node = node.parent;
   }
-  var element_path = [];
+  var elementPath = [];
   var element = $(node);
-  var parent_element = element.parent();
+  var parentElement = element.parent();
   var order;
 
-  while (parent_element.length > 0 && element[0].name !== "body") {
-    order = inArray(element, parent_element.children());
-    element_path.unshift(order);
-    element = parent_element;
-    parent_element = parent_element.parent();
+  while (parentElement.length > 0 && element[0].name !== "body") {
+    order = inArray(element, parentElement.children());
+    elementPath.unshift(order);
+    element = parentElement;
+    parentElement = parentElement.parent();
   }
-  element_path.unshift(0);
-  return element_path;
+  elementPath.unshift(0);
+  return elementPath;
 }
 
 // returns index of element within array
@@ -617,24 +617,24 @@ function inArray(element, array) {
   return index;
 }
 
-// find all instances of search_term in the document
-// returns a list of parent elements that contain the search_term
-function searchText(search_term, $, text, text_nodes) {
-  search_term = String(search_term);
-  var total = occurrences(text, search_term, true);
+// find all instances of searchTerm in the document
+// returns a list of parent elements that contain the searchTerm
+function searchText(searchTerm, $, text, textNodes) {
+  searchTerm = String(searchTerm);
+  var total = occurrences(text, searchTerm, true);
 
   if (total > 0) {
     var params = {
-      "node_index": 0,
-      "search_term": search_term,
-      "search_elements": [],
+      "nodeIndex": 0,
+      "searchTerm": searchTerm,
+      "searchElements": [],
       "total": total,
       "count": 0,
       "text": "",
       // holds last valid index
-      "current_index": -1,
+      "currentIndex": -1,
       "result": true,
-      "text_nodes": text_nodes,
+      "textNodes": textNodes,
       "$": $
     };
 
@@ -643,209 +643,209 @@ function searchText(search_term, $, text, text_nodes) {
     for (var i = 0; i < children.length; i++) {
       params = iterateText(children[i], findMatch, params);
       if (params.result === false) {
-        console.log("Found all " + search_term + " matches in document");
+        console.log("Found all " + searchTerm + " matches in document");
         break;
       }
     }
-    return params.search_elements;
+    return params.searchElements;
   }
 }
 
-/* params: node_index - index in text_nodes iterated through
-*          search_term - search term to match
-*          search_elements - parent elements of found search terms
+/* params: nodeIndex - index in textNodes iterated through
+*          searchTerm - search term to match
+*          searchElements - parent elements of found search terms
 *          total - total # of matches found
 *          count - current # of matches found
 *          text - total plain-text of all passed text nodes
-*          current_index - holds last valid index
+*          currentIndex - holds last valid index
 *          result - set to false to break out of iterateText
-*          text_nodes - array of text nodes making up document text
+*          textNodes - array of text nodes making up document text
 *          $ - jquery methods for page html
 */
 function findMatch(node, params) {
 
   var $ = params.$,
-      node_value = node.data.trim(),
-      node_index = params.node_index,
-      search_term = params.search_term,
-      search_elements = params.search_elements,
+      nodeValue = node.data.trim(),
+      nodeIndex = params.nodeIndex,
+      searchTerm = params.searchTerm,
+      searchElements = params.searchElements,
       total = params.total,
       count = params.count,
       text = params.text,
-      current_index = params.current_index,
-      text_nodes = params.text_nodes;
+      currentIndex = params.currentIndex,
+      textNodes = params.textNodes;
 
   if (text === "") {
-    text = node_value;
+    text = nodeValue;
   } else {
-    text += " " + node_value;
+    text += " " + nodeValue;
   }
 
-  // if search_term is found, current text node is the end node for one count
-  var index = text.toLowerCase().indexOf(search_term.toLowerCase(), current_index + 1);
-  // if there is multiple instances of search_term in text (loops through while loop), use old_start_index to calculate start_index
-  var old_start_index, start_node_index;
+  // if searchTerm is found, current text node is the end node for one count
+  var index = text.toLowerCase().indexOf(searchTerm.toLowerCase(), currentIndex + 1);
+  // if there is multiple instances of searchTerm in text (loops through while loop), use oldStartIndex to calculate startIndex
+  var oldStartIndex, startNodeIndex;
 
-  // stores the number of characters the start of search_term is from the end of text
-  var characters_from_end = text.length - index;
+  // stores the number of characters the start of searchTerm is from the end of text
+  var charactersFromEnd = text.length - index;
 
-  // loop through text node in case there is more than one search_term instance in text
+  // loop through text node in case there is more than one searchTerm instance in text
   while (index !== -1) {
-    current_index = index;
+    currentIndex = index;
 
-    // remember how many text nodes before current node we are pulling from text_nodes
-    var text_nodes_back_index = node_index - 1;
+    // remember how many text nodes before current node we are pulling from textNodes
+    var textNodesBackIndex = nodeIndex - 1;
 
-    // text_selection will contain a combined string of all text nodes where current search_term spans over
-    var text_selection = node_value;
-    var start_node;
+    // textSelection will contain a combined string of all text nodes where current searchTerm spans over
+    var textSelection = nodeValue;
+    var startNode;
 
-    // set text_selection to contain prevSibling text nodes until the current search_term matches
-    while (text_selection.length < characters_from_end) {
-      //console.log("text_selection.length: " + text_selection.length + " < " + characters_from_end);
-      //console.log("old text_selection: " + text_selection);
-      text_selection = text_nodes[text_nodes_back_index].data.trim() + " " + text_selection;
-      //console.log("space added: " + text_selection);
-      text_nodes_back_index--;
+    // set textSelection to contain prevSibling text nodes until the current searchTerm matches
+    while (textSelection.length < charactersFromEnd) {
+      //console.log("textSelection.length: " + textSelection.length + " < " + charactersFromEnd);
+      //console.log("old textSelection: " + textSelection);
+      textSelection = textNodes[textNodesBackIndex].data.trim() + " " + textSelection;
+      //console.log("space added: " + textSelection);
+      textNodesBackIndex--;
     }
 
-    // use old start_node_index value before re-calculating it if its the same as new start_node_index
-    // start_index needs to ignore previous instances of text
-    var start_index;
-    if (start_node_index !== undefined && start_node_index === text_nodes_back_index + 1) {
-      // find index search_term starts on in text node (or prevSibling)
-      start_index = text_selection.toLowerCase().indexOf(search_term.toLowerCase(), old_start_index + 1);
+    // use old startNodeIndex value before re-calculating it if its the same as new startNodeIndex
+    // startIndex needs to ignore previous instances of text
+    var startIndex;
+    if (startNodeIndex !== undefined && startNodeIndex === textNodesBackIndex + 1) {
+      // find index searchTerm starts on in text node (or prevSibling)
+      startIndex = textSelection.toLowerCase().indexOf(searchTerm.toLowerCase(), oldStartIndex + 1);
     } else {
-      start_index = text_selection.toLowerCase().indexOf(search_term.toLowerCase());
+      startIndex = textSelection.toLowerCase().indexOf(searchTerm.toLowerCase());
     }
-    old_start_index = start_index;
+    oldStartIndex = startIndex;
 
-    // start_node contains beginning of search_term and node contains end of search_term
-    var start_node_index = text_nodes_back_index + 1;
+    // startNode contains beginning of searchTerm and node contains end of searchTerm
+    var startNodeIndex = textNodesBackIndex + 1;
     // possibly null parentNode because highlighted text before, adding MARK tag and then removed it
-    start_node = text_nodes[start_node_index];
-    //console.log("final text_selection: " + text_selection);
+    startNode = textNodes[startNodeIndex];
+    //console.log("final textSelection: " + textSelection);
 
-    if (start_index !== -1) {
-      // set parent as first element parent of text_node
-      var end_parent = node.parent;
+    if (startIndex !== -1) {
+      // set parent as first element parent of textNode
+      var endParent = node.parent;
 
-      var start_parent = start_node.parent;
+      var startParent = startNode.parent;
 
-      var target_parent;
+      var targetParent;
       // start and end parents are the same
-      if (start_parent === end_parent) {
+      if (startParent === endParent) {
         console.log("start parent is end parent");
-        target_parent = start_parent;
+        targetParent = startParent;
       }
       // start parent is target parent element
-      else if ($.contains(start_parent, end_parent)) {
+      else if ($.contains(startParent, endParent)) {
         console.log("start parent is larger");
-        target_parent = start_parent;
+        targetParent = startParent;
       }
       // end parent is target parent element
-      else if ($.contains(end_parent, start_parent)) {
+      else if ($.contains(endParent, startParent)) {
         console.log("end parent is larger");
-        target_parent = end_parent;
+        targetParent = endParent;
       }
       // neither parents contain one another
       else {
         console.log("neither parent contains the other");
-        // iterate upwards until start_parent contains end_parent
-        while (!$.contains(start_parent, end_parent) && start_parent !== end_parent) {
-          start_parent = start_parent.parent;
+        // iterate upwards until startParent contains endParent
+        while (!$.contains(startParent, endParent) && startParent !== endParent) {
+          startParent = startParent.parent;
         }
-        target_parent = start_parent;
+        targetParent = startParent;
       }
 
-      // set start_node to node before the parent we are calculating with
-      if (text_nodes_back_index !== -1) {
-        start_node = text_nodes[text_nodes_back_index];
-        text_nodes_back_index--;
+      // set startNode to node before the parent we are calculating with
+      if (textNodesBackIndex !== -1) {
+        startNode = textNodes[textNodesBackIndex];
+        textNodesBackIndex--;
 
-        var start_element = start_node.parent;
+        var startElement = startNode.parent;
 
-        // continue adding text length to start_index until parent elements are not contained in target_parent
-        while (($.contains(target_parent, start_element) || target_parent === start_element) && text_nodes_back_index !== -1) {
-          start_index += start_node.data.trim().length + 1;
-          start_node = text_nodes[text_nodes_back_index];
-          text_nodes_back_index--;
-          start_element = start_node.parent;
+        // continue adding text length to startIndex until parent elements are not contained in targetParent
+        while (($.contains(targetParent, startElement) || targetParent === startElement) && textNodesBackIndex !== -1) {
+          startIndex += startNode.data.trim().length + 1;
+          startNode = textNodes[textNodesBackIndex];
+          textNodesBackIndex--;
+          startElement = startNode.parent;
         }
       }
 
-      // find index search_term ends on in text node
-      var end_index = start_index + search_term.length;
-      /*console.log("start index: " + start_index);
-      console.log("end index: " + end_index);*/
+      // find index searchTerm ends on in text node
+      var endIndex = startIndex + searchTerm.length;
+      /*console.log("start index: " + startIndex);
+      console.log("end index: " + endIndex);*/
 
-      search_elements.push({
-        index: current_index,
-        start: start_index,
-        end: end_index,
-        start_node_index: start_node_index,
-        end_node_index: node_index
+      searchElements.push({
+        index: currentIndex,
+        start: startIndex,
+        end: endIndex,
+        startNodeIndex: startNodeIndex,
+        endNodeIndex: nodeIndex
       });
 
       count++;
     } else {
-      console.log(text_selection);
-      console.log(search_term);
+      console.log(textSelection);
+      console.log(searchTerm);
     }
 
-    index = text.toLowerCase().indexOf(search_term.toLowerCase(), current_index + 1);
-    characters_from_end = text.length - index;
-    //console.log("characters from end: " + characters_from_end);
+    index = text.toLowerCase().indexOf(searchTerm.toLowerCase(), currentIndex + 1);
+    charactersFromEnd = text.length - index;
+    //console.log("characters from end: " + charactersFromEnd);
 
     if (count === total) {
-      console.log("Completed calculations for all matched search_terms");
-      node_index++;
+      console.log("Completed calculations for all matched searchTerms");
+      nodeIndex++;
       return ({
-              "node_index": node_index,
-              "search_term": search_term,
-              "search_elements": search_elements,
+              "nodeIndex": nodeIndex,
+              "searchTerm": searchTerm,
+              "searchElements": searchElements,
               "total": total,
               "count": count,
               "text": text,
-              "current_index": current_index,
+              "currentIndex": currentIndex,
               "result": false,
-              "text_nodes": text_nodes,
+              "textNodes": textNodes,
               "$": $
             });
     }
   }
-  node_index++;
+  nodeIndex++;
   return ({
-            "node_index": node_index,
-            "search_term": search_term,
-            "search_elements": search_elements,
+            "nodeIndex": nodeIndex,
+            "searchTerm": searchTerm,
+            "searchElements": searchElements,
             "total": total,
             "count": count,
             "text": text,
-            "current_index": current_index,
+            "currentIndex": currentIndex,
             "result": true,
-            "text_nodes": text_nodes,
+            "textNodes": textNodes,
             "$": $
           });
 }
 
-function alterSearchData(modify_from, change, data, text_nodes) {
-  if (modify_from === "start") {
+function alterSearchData(modifyFrom, change, data, textNodes) {
+  if (modifyFrom === "start") {
     if (change > data.start) {
       change -= data.start;
-      data.start_node_index = data.start_node_index - 1;
-      while (text_nodes[year_index.start_node_index].data.trim().length > change) {
-        change -= text_nodes[data.start_node_index].data.trim().length;
-        data.start_node_index = data.start_node_index - 1;
+      data.startNodeIndex = data.startNodeIndex - 1;
+      while (textNodes[yearIndex.startNodeIndex].data.trim().length > change) {
+        change -= textNodes[data.startNodeIndex].data.trim().length;
+        data.startNodeIndex = data.startNodeIndex - 1;
       }
     }
-  } else if (modify_from === "end") {
-    if (change > text_nodes[data.end_node_index].data.trim().length - data.end) {
-      change -= text_nodes[data.end_node_index].data.trim().length - data.end;
-      data.end_node_index = data.end_node_index + 1;
-      while (text_nodes[data.end_node_index].data.trim().length > change) {
-        change -= text_nodes[data.end_node_index].data.trim().length;
-        data.end_node_index = data.end_node_index + 1;
+  } else if (modifyFrom === "end") {
+    if (change > textNodes[data.endNodeIndex].data.trim().length - data.end) {
+      change -= textNodes[data.endNodeIndex].data.trim().length - data.end;
+      data.endNodeIndex = data.endNodeIndex + 1;
+      while (textNodes[data.endNodeIndex].data.trim().length > change) {
+        change -= textNodes[data.endNodeIndex].data.trim().length;
+        data.endNodeIndex = data.endNodeIndex + 1;
       }
     }
   }

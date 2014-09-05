@@ -1,0 +1,18 @@
+{
+  "name": "aserver",
+  "version": "1.0.0",
+  "description": "Automation server for generating receipt data using web page templates",
+  "author": "TwoReceipt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oscarhou/aServer"
+  },
+  "dependencies": {
+    "async": "0.9.x",
+    "cheerio": "0.17.x",
+    "html-entities": "1.1.x",
+    "mysql": "2.4.x",
+    "restify": "2.8.x"
+  },
+  "private": true
+}

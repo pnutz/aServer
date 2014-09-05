@@ -1,17 +1,17 @@
-var http = require("http"),
-sys = require("sys"),
-url = require("url"),
-qs = require("querystring"),
-restify = require("restify");
+var http = require("http");
+var sys = require("sys");
+var url = require("url");
+var qs = require("querystring");
+var restify = require("restify");
 // Authentication module
-auth = require("./routes/auth"),
-parse = require("./html_parser"),
-compose = require("./html_composer"),
-layer = require("./calculation_layer"),
-probability = require("./probability"),
+var auth = require("./routes/auth");
+var parse = require("./html_parser");
+var compose = require("./html_composer");
+var layer = require("./calculation_layer");
+var probability = require("./probability");
 // TODO: Change origin to contain chrome extension full url (once ID is set)
-originString = "chrome-extension://",
-request_count = 0;
+var originString = "chrome-extension://";
+var requestCount = 0;
 var ipAddr = "127.0.0.1";
 var port = "8888";
 
@@ -45,13 +45,13 @@ function start()
     if (req.params.userID !== null && req.params.email !== null && req.params.token !== null) {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
         if (result === true) {
-          var attribute_data = JSON.parse(req.params.attributes);
-          var generated_data = JSON.parse(req.params.generated);
-          var saved_data = JSON.parse(req.params.saved_data);
-          setImmediate(probability.compareGeneratedSavedData(req.params.domain, generated_data, saved_data));
+          var attributeData = JSON.parse(req.params.attributes);
+          var generatedData = JSON.parse(req.params.generated);
+          var savedData = JSON.parse(req.params.savedData);
+          probability.compareGeneratedSavedData(req.params.domain, generatedData, savedData);
 
           // send http request to WebApp
-          setImmediate(parse.generateTemplates(req.params.userID, req.params.domain, req.params.url, req.params.html, attribute_data));
+          parse.generateTemplates(req.params.userID, req.params.domain, req.params.url, req.params.html, attributeData);
           res.header("Content-Type", "text/plain");
           res.send(200, "Authorization Token Accepted");
           console.log("Request Completed");
@@ -82,20 +82,20 @@ function start()
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
         if (result === true) {
           // send http request to WebApp
-          setImmediate(compose.readTemplate(req.params.userID,
-                                            req.params.html,
-                                            req.params.url,
-                                            req.params.domain,
-                                            function(json_message) {
-                                              console.log(json_message);
-                                              // 2nd layer calculations
-                                              layer.applyCalculations(json_message, req.params.html, req.params.domain, function(altered_message) {
-                                                res.header("Content-Type", "text/plain");
-                                                console.log(altered_message);
-                                                res.send(200, JSON.stringify(altered_message));
-                                                console.log("Request Completed");
-                                              });
-                                            }));
+          compose.readTemplate(req.params.userID,
+                               req.params.html,
+                               req.params.url,
+                               req.params.domain,
+                               function(json_message) {
+                                 console.log(json_message);
+                                 // 2nd layer calculations
+                                 layer.applyCalculations(json_message, req.params.html, req.params.domain, function(altered_message) {
+                                   res.header("Content-Type", "text/plain");
+                                   console.log(altered_message);
+                                   res.send(200, JSON.stringify(altered_message));
+                                   console.log("Request Completed");
+                                 });
+                               });
         }
         // Webapp authentication failed
         else {
@@ -119,11 +119,11 @@ function start()
 }
 
 function incrementRequestCount() {
-  request_count++;
-  console.log("Concurrent Requests: " + request_count);
+  requestCount++;
+  console.log("Concurrent Requests: " + requestCount);
 }
 
-function decrementRequestCount() { request_count--; }
+function decrementRequestCount() { requestCount--; }
 
 module.exports = {
   start: start

@@ -6,18 +6,17 @@ db_config = {
   database: "aServer"
 };
 
-function connect() {
+function connect(callback) {
   // can use url string for production instead of db_config
   var connection = mysql.createConnection(db_config);
   connection.connect(function(err) {
     if (err) {
       throw err;
     }
-    
+
     console.log("Connected to MySQL Database");
+    return callback(connection);
   });
-  
-  return connection;
 }
 
 module.exports = {

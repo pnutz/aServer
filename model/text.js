@@ -13,16 +13,16 @@ function Text(id, template_id, element_id, text_id, alignment, text) {
     throw("text: invalid alignment");
   }
   this.id = id;
-  
+
   this.template_id = template_id;
-  
+
   this.element_id = element_id;
-  
+
   this.text_id = text_id;
   this._text = null;
-  
+
   this.alignment = alignment;
-  
+
   this.text = text;
 }
 
@@ -121,10 +121,11 @@ Object.defineProperty(Text.prototype, "right", {
   }
 });
 
+// is conversion for string_text necessary anymore, since database is storing already-converted text?
 Text.getTextById = function(id, callback) {
   var query = db.query("SELECT *, CONVERT(text USING utf8) AS string_text FROM ser_text WHERE id = " + id, function(err, rows) {
     if (err) throw err;
-    
+
     if (rows.length != 0) {
       var text = new Text(rows[0].id, rows[0].template_id,
                               rows[0].element_id, rows[0].text_id,
@@ -141,7 +142,7 @@ Text.getRootTextByTemplate = function(template_id, callback) {
   var query = db.query("SELECT *, CONVERT(text USING utf8) AS string_text FROM ser_text WHERE " +
                           "alignment = 'root' AND template_id = " + template_id, function(err, rows) {
     if (err) throw err;
-    
+
     if (rows.length != 0) {
       var text = new Text(rows[0].id, rows[0].template_id,
                               rows[0].element_id, rows[0].text_id,
@@ -158,7 +159,7 @@ Text.getTextByAlignment = function(alignment, root_id, callback) {
   var query = db.query("SELECT *, CONVERT(text USING utf8) AS string_text FROM ser_text WHERE " +
                           "text_id = " + root_id + " AND alignment = '" + alignment + "'", function(err, rows) {
     if (err) throw err;
-    
+
     if (rows.length != 0) {
       var text = new Text(rows[0].id, rows[0].template_id,
                               rows[0].element_id, rows[0].text_id,

@@ -164,7 +164,6 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   `relation` ENUM('root','sibling','child','parent') NOT NULL,
   `level` INT NOT NULL,
   `tag_id` INT NOT NULL,
-  `html` MEDIUMBLOB NOT NULL,
   `order` INT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_element_template_idx` (`template_id` ASC),
@@ -294,9 +293,6 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_attempt` (
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
-CREATE USER 'db_admin' IDENTIFIED BY 'templeton';
-
-GRANT ALL ON `aserver`.* TO 'db_admin';
 
 SET SQL_MODE=@OLD_SQL_MODE;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;

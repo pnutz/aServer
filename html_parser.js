@@ -5,7 +5,6 @@ var Element = require("./model/element");
 var Template = require("./model/template");
 var TemplateDomain = require("./model/template_domain");
 var TemplateGroup = require("./model/template_group");
-var ElementAttribute = require("./model/element_attribute");
 var ReceiptAttribute = require("./model/receipt_attribute");
 var Text = require("./model/text");
 var Url = require("./model/url");
@@ -40,14 +39,12 @@ exports.generateTemplates = function(userId, domain, url, html, attributeData) {
         } else {
           console.log("No receipt attribute groups found");
         }
+
+        // set grouped and individual keys
+        keys = Object.keys(individualAttributes);
+        groupedKeys = Object.keys(groupedAttributes);
         return callback();
       });
-    },
-    // set grouped and individual keys
-    function(callback) {
-      keys = Object.keys(individualAttributes);
-      groupedKeys = Object.keys(groupedAttributes);
-      return callback();
     },
     // create url id
     function(callback) {

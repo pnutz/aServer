@@ -42,7 +42,7 @@ function start()
   server.post('/template', function test(req, res, next) {
     console.log("Data received for " + req.params.email);
     // Authorization
-    if (req.params.userID !== null && req.params.email !== null && req.params.token !== null) {
+    if (req.params.userID != null && req.params.email != null && req.params.token != null) {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
         if (result === true) {
           var attributeData = JSON.parse(req.params.attributes);
@@ -78,7 +78,7 @@ function start()
         res.send(new Error("Invalid domain"));
         console.log("Invalid domain");
         return next();
-    } else if (req.params.userID !== null && req.params.email !== null && req.params.token !== null) {
+    } else if (req.params.userID != null && req.params.email != null && req.params.token != null) {
       auth.authorizeRequest(req.params.token, req.params.userID, req.params.email, function(result) {
         if (result === true) {
           // send http request to WebApp

@@ -12,7 +12,7 @@ function Url(id, domain, url) {
     throw("url: invalid input");
   }
   this.id = id;
-  
+
   if (typeof domain == "number") {
     this.domain_id = domain;
     this._domain = null;
@@ -20,7 +20,7 @@ function Url(id, domain, url) {
     this.domain_id = null;
     this._domain = domain;
   }
-  
+
   this.url = url;
 }
 
@@ -47,7 +47,7 @@ Url.prototype.save = function(callback) {
       url: local.url,
       domain_id: local.domain_id
     };
-  
+
     insertUrl(post, function(id) {
       local.id = id;
       callback(id);

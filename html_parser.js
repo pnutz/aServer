@@ -13,94 +13,90 @@ var SimpleTable = require("./model/simple_table");
 var Entities = require("html-entities").AllHtmlEntities;
 var entities = new Entities();
 
-exports.generateTemplates = function(user_id, domain, url, html, attribute_data) {
-  var new_url, individual_attributes, grouped_attributes = {}, keys, grouped_keys;
+exports.generateTemplates = function(userId, domain, url, html, attributeData) {
+  var newUrl;
+  var individualAttributes = attributeData;
+  var groupedAttributes = {};
+  var keys;
+  var groupedKeys;
 
-  individual_attributes = attribute_data;
+  if (Object.keys(individualAttributes).length === 0) {
+    console.log("No attribute data sent");
+    return;
+  }
 
   async.series([
-    // calculate grouped attribute keys - grouped_attributes = { items: {}, other: {} }
+    // calculate grouped attribute keys - groupedAttributes = { items: {}, other: {} }
     function(callback) {
-      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(result_groups) {
-        if (result_groups != null) {
-          async.eachSeries(result_groups, function(group, each_callback) {
-            if (attribute_data.hasOwnProperty(group.group_name)) {
-              grouped_attributes[group.group_name] = attribute_data[group.group_name];
-              delete individual_attributes[group.group_name];
+      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(resultGroups) {
+        if (resultGroups != null) {
+          for (var i = 0; i < resultGroups.length; i++) {
+            var group = resultGroups[i];
+            if (attributeData.hasOwnProperty(group.group_name)) {
+              groupedAttributes[group.group_name] = attributeData[group.group_name];
+              delete individualAttributes[group.group_name];
             }
-            each_callback();
-          }, function(err) {
-            if (err) {
-              console.log(err.message);
-            }
-            callback();
-          });
+          }
         } else {
           console.log("No receipt attribute groups found");
-          callback();
         }
+        return callback();
       });
     },
-    // check if attribute data is sent
+    // set grouped and individual keys
     function(callback) {
-      keys = Object.keys(individual_attributes);
-      grouped_keys = Object.keys(grouped_attributes);
-
-      // stop if no data was sent
-      if ((keys == null || keys.length === 0) && (grouped_keys == null || grouped_keys.length === 0)) {
-        console.log("No attribute data sent");
-        return;
-      } else {
-        callback();
-      }
+      keys = Object.keys(individualAttributes);
+      groupedKeys = Object.keys(groupedAttributes);
+      return callback();
     },
     // create url id
     function(callback) {
       console.log("----------------URL----------------------");
-      new_url = new Url(null, domain, url);
-      new_url.save(function(new_url_id) {
-        if (new_url_id !== null) {
-          callback();
+      newUrl = new Url(null, domain, url);
+      newUrl.save(function(newUrlId) {
+        if (newUrlId != null) {
+          return callback();
         } else {
-          callback(new Error("failed to create new url"));
+          return callback(new Error("failed to create new url"));
         }
       });
     },
     // generate templates for each individual attribute
     function(callback) {
-      if (keys != null) {
+      if (keys.length > 0) {
         async.eachSeries(keys,
-        function(key, each_callback) {
-          generateTemplate(user_id, key, html,
-                          new_url.id, new_url.domain_id, null, null, each_callback);
+        function(key, eachCallback) {
+          generateTemplate(userId, key, html, newUrl.id,
+                             newUrl.domain_id, null, null, eachCallback);
         },
         function(err) {
           if (err) {
             console.log(err.message);
           }
           console.log("Generated templates for individual attributes");
-          callback();
+          return callback();
         });
       } else {
-        callback();
+        return callback();
       }
     },
     // generate templates for each grouped attribute
     function(callback) {
-      if (grouped_keys != null) {
-        async.eachSeries(grouped_keys, function(group_name, each_callback) {
-          if (grouped_attributes.hasOwnProperty(group_name)) {
-            async.eachSeries(Object.keys(grouped_attributes[group_name]), function(key, each_callback2) {
-              generateTemplateGroup(html, user_id, new_url.id, new_url.domain_id, group_name, grouped_attributes[group_name][key], key, each_callback2);
+      if (groupedKeys.length > 0) {
+        async.eachSeries(groupedKeys, function(groupName, eachCallback) {
+          if (groupedAttributes.hasOwnProperty(groupName)) {
+            // iterate through each key contained within grouped attribute
+            async.eachSeries(Object.keys(groupedAttributes[groupName]), function(key, eachCallback2) {
+              generateTemplateGroup(html, userId, newUrl.id, newUrl.domain_id, groupName, groupedAttributes[groupName][key], key, eachCallback2);
             },
             function(err) {
               if (err) {
                 console.log(err.message);
               }
-              each_callback();
+              return eachCallback();
             });
           } else {
-            each_callback();
+            return eachCallback();
           }
         },
         function(err) {
@@ -109,10 +105,10 @@ exports.generateTemplates = function(user_id, domain, url, html, attribute_data)
           } else {
             console.log("Generated templates for grouped attributes");
           }
-          callback();
+          return callback();
         });
       } else {
-        callback();
+        return callback();
       }
     }
   ], function(err, result) {
@@ -124,43 +120,42 @@ exports.generateTemplates = function(user_id, domain, url, html, attribute_data)
   });
 };
 
-function generateTemplateGroup(html, user_id, url_id, domain_id, group_name, attribute_group, index, template_callback) {
-  var template_group_id, template_elements = [];
+function generateTemplateGroup(html, userId, urlId, domainId, groupName, attributeGroup, index, templateCallback) {
+  var templateGroupId;
 
   async.series([
     // create template group
     function(callback) {
-      SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", group_name, function(group_id) {
-        if (group_id != null) {
-          var template_group = new TemplateGroup(null, domain_id, group_id, 1, null, 1, 1);
-          template_group.save(function(id) {
-            template_group_id = id;
-            callback();
+      SimpleTable.getIdByValue("ser_receipt_attribute_group", "group_name", groupName, function(groupId) {
+        if (groupId != null) {
+          var templateGroup = new TemplateGroup(null, domainId, groupId, 1, null, 1, 1);
+          templateGroup.save(function(id) {
+            templateGroupId = id;
+            return callback();
           });
         } else {
-          callback(new Error("Receipt attribute group does not exist"));
+          return callback(new Error("Receipt attribute group does not exist"));
         }
       });
     },
     // generate templates for each grouped attribute
     function(callback) {
-      var attribute_keys = Object.keys(attribute_group);
-      async.eachSeries(attribute_keys,
-      function(attr, each_callback) {
-        generateTemplate(user_id, attr, html, url_id,
-                        domain_id, template_group_id, index, each_callback);
+      var attributeKeys = Object.keys(attributeGroup);
+      async.eachSeries(attributeKeys, function(attr, eachCallback) {
+        generateTemplate(userId, attr, html, urlId, domainId,
+                           templateGroupId, index, eachCallback);
       }, function(err) {
         if (err) {
           console.log(err.message);
         } else {
           console.log("Ran generateTemplate for each grouped attribute.");
         }
-        callback();
+        return callback();
       });
     },
     // generate (optional) row template for template group
     function(callback) {
-      generateRowTemplate(user_id, url_id, template_group_id, callback);
+      generateRowTemplate(userId, urlId, templateGroupId, callback);
     }
   ], function(err, result) {
     if (err) {
@@ -168,256 +163,266 @@ function generateTemplateGroup(html, user_id, url_id, domain_id, group_name, att
     } else {
       console.log("Completed generateTemplateGroup method");
     }
-    template_callback();
+    return templateCallback();
   });
 }
 
-function generateRowTemplate(user_id, url_id, template_group_id, template_callback) {
-  var row_attribute_id, templates, template_elements = [], body_element, row_element, element_level, current_element_id, template_id;
+function generateRowTemplate(userId, urlId, templateGroupId, templateCallback) {
+  // attribute id for row
+  var rowAttributeId;
+  // grouped templates for templateGroupId
+  var templates;
+  // body elements for grouped templates
+  var templateElements = [];
+  var bodyElement;
+  var rowElement;
+  var elementLevel;
+  var currentElementId;
+  var templateId;
 
   async.series([
     // get row attribute id
     function(callback) {
-      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", "row", function(attribute_id) {
+      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", "row", function(attributeId) {
         // check if row attribute exists
-        if (attribute_id != null) {
-          row_attribute_id = attribute_id;
-          callback();
+        if (attributeId != null) {
+          rowAttributeId = attributeId;
+          return callback();
         } else {
-          callback(new Error("Row attribute does not exist"));
+          return callback(new Error("Row attribute does not exist"));
         }
       });
     },
     // get grouped templates
     function(callback) {
-      Template.getTemplatesByGroup(template_group_id, function(selected_templates) {
-        if (selected_templates != null && selected_templates.length > 0) {
-          templates = selected_templates;
-          callback();
+      Template.getTemplatesByGroup(templateGroupId, function(groupedTemplates) {
+        if (groupedTemplates != null && groupedTemplates.length > 0) {
+          templates = groupedTemplates;
+          return callback();
         } else {
-          callback(new Error("Grouped templates do not exist"));
+          return callback(new Error("Grouped templates do not exist"));
         }
       });
     },
     // load template body elements into array
     function(callback) {
-      async.each(templates, function(template, each_callback) {
+      async.each(templates, function(template, eachCallback) {
         Element.getBodyElementByTemplate(template.id, function(err, element) {
           if (err == null) {
-            if (body_element == null) {
-              body_element = element;
+            if (bodyElement == null) {
+              bodyElement = element;
             }
-            template_elements.push(element);
-            each_callback();
+            templateElements.push(element);
+            return eachCallback();
           } else {
-            each_callback(err);
+            return eachCallback(err);
           }
         });
       }, function(err) {
         if (err) {
-          callback(err);
+          return callback(err);
         } else {
-          callback();
+          return callback();
         }
       });
     },
     // while templates match, keep iterating from body to root element
     function(callback) {
-      var match = true, order, tag_id;
+      var match = true;
+
       async.whilst(
-        // whilst loop condition - while tag_id & order match all templates and root element is not hit
+        // whilst loop condition - while tagId & order match all templates and root element is not hit
         function() { return match; },
         // whilst loop function
-        function(whilst_callback) {
+        function(whilstCallback) {
           async.series([
             // set each template element to its child element
-            function(series_callback) {
-              var temp_elements = [];
-              async.each(template_elements, function(template_element, each_callback) {
-                template_element.element = function(element_result) {
-                    temp_elements.push(element_result);
-                    each_callback();
+            function(seriesCallback) {
+              var tempElements = [];
+              async.each(templateElements, function(templateElement, eachCallback) {
+                templateElement.element = function(elementResult) {
+                    tempElements.push(elementResult);
+                    return eachCallback();
                   };
               }, function(err) {
                 if (err) {
-                  series_callback(err);
+                  return seriesCallback(err);
                 } else {
-                  template_elements = temp_elements;
-                  series_callback();
+                  templateElements = tempElements;
+                  return seriesCallback();
                 }
               });
             },
             // prepare variables for synchronous whilst test function
-            function(series_callback) {
+            function(seriesCallback) {
               match = true;
-              order = null;
-              tag_id = null;
-              async.eachSeries(template_elements, function(template_element, each_callback) {
-                if (template_element.relation === "root" || template_element.element_id == null) {
+              var order;
+              var tagId;
+
+              for (var i = 0; i < templateElements.length; i++) {
+                var templateElement = templateElements[i];
+                if (templateElement.relation === "root" || templateElement.element_id == null) {
                   match = false;
                 }
 
-                if (tag_id == null) {
-                  tag_id = template_element.tag_id;
-                  order = template_element.order;
-                } else if (template_element.tag_id != tag_id || template_element.order != order) {
+                if (tagId == null) {
+                  tagId = templateElement.tag_id;
+                  order = templateElement.order;
+                } else if (templateElement.tag_id !== tagId || templateElement.order !== order) {
                   match = false;
                 }
-                each_callback();
-              }, function(err) {
-                if (err) {
-                  series_callback(err);
-                } else {
-                  template_elements[0].tag = function(tag_result) {
-                    // elements matched and tag is a row, store as row_element
-                    if (match === true && (tag_result === "tr" || tag_result === "li" || tag_result === "dl" || tag_result === "dd")) {
-                      row_element = template_elements[0];
-                    }
-                    series_callback();
-                  };
+              }
+
+              templateElements[0].tag = function(tagResult) {
+                // elements matched and tag is a row, store as row_element
+                if (match === true && (tagResult === "tr" || tagResult === "li" || tagResult === "dl" || tagResult === "dd")) {
+                  rowElement = templateElements[0];
                 }
-              });
+                return seriesCallback();
+              };
             }
           ], function(err) {
             if (err) {
-              whilst_callback(err);
+              return whilstCallback(err);
+            } else if (rowElement == null) {
+              return whilstCallback(new Error("row element does not exist"));
             } else {
-              whilst_callback();
+              return whilstCallback();
             }
           });
         },
         function(err) {
           if (err) {
-            callback(err);
+            return callback(err);
           } else {
-            callback();
+            return callback();
           }
         }
       );
     },
-    // create template for row if row_element exists
+    // create template for row if rowElement exists
     function(callback) {
-      if (row_element != null) {
-        var new_template = new Template(null, row_attribute_id, template_group_id, url_id, user_id);
-        new_template.save(function(new_template_id) {
-          if (new_template_id != null) {
-            template_id = new_template_id;
-            callback();
-          } else {
-            callback(new Error("failed to create new template"));
-          }
-        });
-      } else {
-        callback(new Error("Row element does not exist"));
-      }
+      var newTemplate = new Template(null, rowAttributeId, templateGroupId, urlId, userId);
+      newTemplate.save(function(newTemplateId) {
+        if (newTemplateId != null) {
+          templateId = newTemplateId;
+          return callback();
+        } else {
+          return callback(new Error("failed to create new template"));
+        }
+      });
     },
     // create row element for row template
     function(callback) {
-      element_level = 0;
-      var new_element = new Element(null, null, template_id, row_element.tag_id, "root", element_level, row_element.order);
-      new_element.save(function(element_id) {
-        if (element_id != null) {
-          current_element_id = element_id;
-          element_level--;
+      elementLevel = 0;
+      var newElement = new Element(null, null, templateId, rowElement.tag_id, "root", elementLevel, rowElement.order);
+      newElement.save(function(elementId) {
+        if (elementId != null) {
+          currentElementId = elementId;
+          elementLevel--;
+          return callback();
 
-          ElementAttribute.getElementAttributesByElement(row_element.id, function(attributes) {
+          // no longer using element attribute
+          /*ElementAttribute.getElementAttributesByElement(rowElement.id, function(attributes) {
             if (attributes != null) {
-              // iterate through row_element attributes, adding it to new_element
-              async.each(attributes, function(attribute, each_callback) {
-                var element_attribute = new ElementAttribute(attribute.type_id, attribute.value_id, current_element_id);
-                element_attribute.save(each_callback);
+              // iterate through row_element attributes, adding it to newElement
+              async.each(attributes, function(attribute, eachCallback) {
+                var element_attribute = new ElementAttribute(attribute.type_id, attribute.value_id, currentElementId);
+                element_attribute.save(eachCallback);
               }, function(err) {
                 if (err) {
-                  callback(err);
+                  return callback(err);
                 } else {
-                  callback();
+                  return callback();
                 }
               });
             } else {
-              callback();
+              return callback();
             }
-          });
+          });*/
         } else {
-          callback(new Error("failed to create body element for row template"));
+          return callback(new Error("failed to create body element for row template"));
         }
       });
     },
     function(callback) {
-      Element.getParentElementById(row_element.id, function(err, parent_element) {
+      Element.getParentElementById(rowElement.id, function(err, parentElement) {
         if (err == null) {
-          row_element = parent_element;
-          callback();
+          rowElement = parentElement;
+          return callback();
         } else {
-          callback(new Error("Completed generateRowTemplate method"));
+          return callback(new Error("Completed generateRowTemplate method"));
         }
       });
     },
     // create elements from body element to row element for row template
     function(callback) {
-      var parent_exists = true;
+      var parentExists = true;
 
       async.whilst(
         // whilst condition - parent element must exist
-        function() { return parent_exists; },
+        function() { return parentExists; },
         // whilst loop
-        function(whilst_callback) {
+        function(whilstCallback) {
           async.series([
             // create new element and element attributes for row template
-            function(series_callback) {
-              var new_element = new Element(null, current_element_id, template_id, row_element.tag_id, "parent", element_level, row_element.order);
-              new_element.save(function(element_id) {
-                if (element_id != null) {
-                  current_element_id = element_id;
-                  element_level--;
+            function(seriesCallback) {
+              var newElement = new Element(null, currentElementId, templateId, rowElement.tag_id, "parent", elementLevel, rowElement.order);
+              newElement.save(function(elementId) {
+                if (elementId != null) {
+                  currentElementId = elementId;
+                  elementLevel--;
+                  return seriesCallback();
 
-                  ElementAttribute.getElementAttributesByElement(row_element.id, function(attributes) {
+                  // no longer using element attribute
+                  /*ElementAttribute.getElementAttributesByElement(row_element.id, function(attributes) {
                     if (attributes != null) {
-                      // iterate through row_element attributes, adding it to new_element
-                      async.each(attributes, function(attribute, each_callback) {
+                      // iterate through row_element attributes, adding it to newElement
+                      async.each(attributes, function(attribute, eachCallback) {
                         var element_attribute = new ElementAttribute(attribute.type_id, attribute.value_id, current_element_id);
-                        element_attribute.save(each_callback);
+                        element_attribute.save(eachCallback);
                       }, function(err) {
                         if (err) {
-                          series_callback(err);
+                          seriesCallback(err);
                         } else {
-                          series_callback();
+                          seriesCallback();
                         }
                       });
                     } else {
-                      series_callback();
+                      seriesCallback();
                     }
-                  });
+                  });*/
                 } else {
-                  series_callback(new Error("failed to create element for row template"));
+                  return seriesCallback(new Error("failed to create element for row template"));
                 }
               });
             },
             // set row element to its parent element
-            function(series_callback) {
-              Element.getParentElementById(row_element.id, function(err, parent_element) {
+            function(seriesCallback) {
+              Element.getParentElementById(rowElement.id, function(err, parentElement) {
                 if (err == null) {
-                  row_element = parent_element;
-                  parent_exists = true;
+                  rowElement = parentElement;
+                  parentExists = true;
                 } else {
-                  parent_exists = false;
+                  parentExists = false;
                 }
-                series_callback();
+                return seriesCallback();
               });
             }
           ], function(err) {
             if (err) {
-              whilst_callback(err);
+              return whilstCallback(err);
             } else {
-              whilst_callback();
+              return whilstCallback();
             }
           });
         },
         function(err) {
           if (err) {
-            callback(err);
+            return callback(err);
           } else {
             console.log("Finished adding row elements for row template");
-            callback();
+            return callback();
           }
         }
       );
@@ -428,395 +433,393 @@ function generateRowTemplate(user_id, url_id, template_group_id, template_callba
     } else {
       console.log("Completed generateRowTemplate method");
     }
-    template_callback();
+    return templateCallback();
   });
 }
 
-function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id, group_index, template_callback) {
-  var template_id, element_dom, $, element_id,
-      left_text_id, right_text_id, parent_element_id, root_order,
-      first_text_child, second_text_child, child_elements = {}, element_indices = {},
-      text_selection, data_attr_selector, start_index, end_index;
+/*
+* groupId: groupId contains a value if template is in a template group
+* groupIndex: each grouped attribute is grouped by an index to help in selecting the elements in the dom
+*/
+function generateTemplate(userId, attribute, html, urlId, domainId, groupId, groupIndex, templateCallback) {
+  var templateId;
+  var elementDom;
+  var $;
+  var elementId;
+  var leftTextId;
+  var rightTextId;
+  var parentElementId;
+  var dataAttrSelector;
+  var startIndex;
+  var endIndex;
 
   async.series([
     // create template for receipt attribute
     function(callback) {
-      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", attribute, function(attribute_id) {
+      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", attribute, function(attributeId) {
         // receipt attribute does not exist
-        if (attribute_id != null) {
+        if (attributeId != null) {
           console.log("----------------TEMPLATE----------------------");
-          var new_template = new Template(null, attribute_id, group_id, url_id, user_id);
-          new_template.save(function(new_template_id) {
-            if (new_template_id !== null) {
-              template_id = new_template_id;
-              callback();
+          var newTemplate = new Template(null, attributeId, groupId, urlId, userId);
+          newTemplate.save(function(newTemplateId) {
+            if (newTemplateId != null) {
+              templateId = newTemplateId;
+              return callback();
             } else {
-              callback(new Error("failed to create new template"));
+              return callback(new Error("failed to create new template"));
             }
           });
         } else {
-          callback(new Error("Attribute " + attribute + " does not exist"));
+          return callback(new Error("Attribute " + attribute + " does not exist"));
         }
       });
     },
     // create template_domain for template & domain
     function(callback) {
       console.log("----------------TEMPLATE DOMAIN----------------------");
-      var new_template_domain = new TemplateDomain(null, template_id, domain_id, 1, null, 1, 1);
-      new_template_domain.save(callback);
+      var newTemplateDomain = new TemplateDomain(null, templateId, domainId, 1, null, 1, 1);
+      newTemplateDomain.save(callback);
     },
     // parse HTML & create root element
     function(callback) {
       $ = cheerio.load(html);
       console.log("Created DOM");
 
-      if (group_id != null) {
-        data_attr_selector = "data-tworeceipt-" + attribute + group_index;
-        element_dom = $("[" + data_attr_selector + "-start]");
+      if (groupId != null) {
+        dataAttrSelector = "data-tworeceipt-" + attribute + groupIndex;
       } else {
-        data_attr_selector = "data-tworeceipt-" + attribute;
-        element_dom = $("[" + data_attr_selector + "-start]");
+        dataAttrSelector = "data-tworeceipt-" + attribute;
       }
+      elementDom = $("[" + dataAttrSelector + "-start]");
 
       // create root element
       console.log("----------------ROOT ELEMENT----------------------");
-      var root_element = new Element(null, null, template_id, element_dom[0].name /* tag */, "root", 0, null);
-      root_element.save(function(root_element_id) {
-        if (root_element_id != null) {
-          element_id = root_element_id;
-          first_element_child = root_element_id;
-          second_element_child = root_element_id;
-          callback();
+      var rootElement = new Element(null, null, templateId, elementDom[0].name /* tag */, "root", 0, null);
+      rootElement.save(function(rootElementId) {
+        if (rootElementId != null) {
+          elementId = rootElementId;
+          return callback();
         } else {
-          callback(new Error("failed to create root element"));
+          return callback(new Error("failed to create root element"));
         }
       });
     },
     // calculate selected text
     function(callback) {
-      getElementText($, element_dom, function(text) {
+      getElementText($, elementDom, function(text) {
         // HARD-CODED &nbsp; REMOVAL (case: amazon.ca)
         text = text.replace(/&nbsp;/g, "");
         // convert html-entities to symbols (ex. &amp; to &)
-        text_selection = entities.decode(text);
+        var textSelection = entities.decode(text);
 
-        start_index = element_dom.attr(data_attr_selector + "-start");
-        end_index = element_dom.attr(data_attr_selector + "-end");
-        text_selection = text_selection.substring(start_index, end_index);
-        callback();
-      });
-    },
-    // save root element attributes
-    /*function(callback) {
-      saveAttributes(element_id, element_dom[0].attribs, callback);
-    },*/
-    // save root text
-    function(callback) {
-      console.log("----------------ROOT TEXT----------------------");
-      var root_text = new Text(null, template_id, element_id, null, "root", text_selection.trim().replace(/\n/g, ""));
-      root_text.save(function(root_text_id) {
-        if (root_text_id != null) {
-          left_text_id = root_text_id;
-          right_text_id = root_text_id;
-          callback();
-        } else {
-          callback(new Error("failed to create text"));
-        }
+        startIndex = elementDom.attr(dataAttrSelector + "-start");
+        endIndex = elementDom.attr(dataAttrSelector + "-end");
+        textSelection = textSelection.substring(startIndex, endIndex).trim().replace(/\n/g, "");
+
+        console.log("----------------ROOT TEXT----------------------");
+        var rootText = new Text(null, templateId, elementId, null, "root", textSelection);
+        rootText.save(function(rootTextId) {
+          if (rootTextId != null) {
+            leftTextId = rootTextId;
+            rightTextId = rootTextId;
+            return callback();
+          } else {
+            return callback(new Error("failed to create text"));
+          }
+        });
       });
     },
     // find index of child nodes that contain start_index and end_index. add left/right text node for these nodes
     function(callback) {
-          // tracks current child index
-      var child_index = 0;
-          // since space characters are added between text nodes, ensures first child (and blank children before first) does not append a space
-      var first_index = true;
-          // tracks current element index
-      var element_index = 0;
-          // tracks current character index to calculate if indices are included - each node's text length is added
-      var character_index = 0;
+      // tracks current child index
+      var childIndex = -1;
+      // since space characters are added between text nodes, ensures first child (and blank children before first) does not append a space
+      var firstIndex = true;
+      // tracks current element index
+      var elementIndex = 0;
+      // tracks current character index to calculate if indices are included - each node's text length is added
+      var characterIndex = 0;
+
+      var firstTextChild;
+      var secondTextChild;
 
       // iterate through all element's children
-      async.eachSeries(element_dom[0].children, function(child, each_callback) {
+      async.eachSeries(elementDom[0].children, function(child, eachCallback) {
+        childIndex++;
+
+        var containsStart;
+        var containsEnd;
+        var localStartIndex;
+        var localEndIndex;
+        var childText;
+
         if (child.type === "text") {
           // only do text calculations if (first and) second text_child indices have not been found
-          if (second_text_child == null) {
-            var child_text = child.data.trim();
-            child_text = child_text.replace(/&nbsp;/g, "");
-            child_text = entities.decode(child_text);
+          if (secondTextChild == null) {
+            childText = child.data.trim().replace(/&nbsp;/g, "");
+            childText = entities.decode(childText);
 
-            if (!isBlank(child_text)) {
-              var contains_start, contains_end, local_start_index, local_end_index;
+            if (!isBlank(childText)) {
               // possible to contain start_index
-              if (character_index < start_index) {
-                contains_start = true;
-                contains_end = true;
-                local_start_index = start_index - character_index;
-                local_end_index = end_index - character_index;
+              if (characterIndex < startIndex) {
+                containsStart = true;
+                containsEnd = true;
+                localStartIndex = startIndex - characterIndex;
+                localEndIndex = endIndex - characterIndex;
               }
               // possible to contain end_index
-              else if (character_index < end_index) {
-                contains_start = false;
-                contains_end = true;
-                local_end_index = end_index - character_index;
+              else if (characterIndex < endIndex) {
+                containsStart = false;
+                containsEnd = true;
+                localEndIndex = endIndex - characterIndex;
               }
               // cannot contain any index
               else {
-                contains_start = false;
-                contains_end = false;
+                containsStart = false;
+                containsEnd = false;
               }
 
               // if first child, don't add space character to element text
-              if (child_index !== 0 && !first_index) {
-                child_text = " " + child_text;
+              if (childIndex !== 0 && !firstIndex) {
+                childText = " " + childText;
               }
-              if (first_index) {
-                first_index = false;
+              if (firstIndex) {
+                firstIndex = false;
               }
-              character_index += child_text.length;
+              characterIndex += childText.length;
 
               // check if node contains end_index
-              if (character_index < start_index) {
-                contains_start = false;
-                contains_end = false;
+              if (characterIndex < startIndex) {
+                containsStart = false;
+                containsEnd = false;
               }
-              else if (character_index < end_index) {
-                contains_end = false;
+              else if (characterIndex < endIndex) {
+                containsEnd = false;
               }
 
               async.series([
                 // calculate left_text
-                function(series_callback) {
+                function(seriesCallback) {
                   // node contains start_index
-                  if (contains_start) {
-                    first_text_child = child_index;
-                    var left_text = child_text.substring(0, local_start_index);
+                  if (containsStart) {
+                    firstTextChild = childIndex;
+                    var leftText = childText.substring(0, localStartIndex);
 
-                    if (!isBlank(left_text)) {
+                    if (!isBlank(leftText)) {
                       // if start_index is at end of text, first_text_child should increase so 2nd iteration looks at index for left_text
-                      if (local_start_index === child_text.length) {
-                        first_text_child++;
+                      if (localStartIndex === childText.length) {
+                        firstTextChild++;
                       }
 
                       console.log("----------------LEFT NODE TEXT----------------------");
-                      var left_text_node = new Text(null, template_id, element_id, left_text_id, "left", left_text.trim().replace(/\n/g, ""));
-                      left_text_node.save(function (left_text_node_id) {
-                        if (left_text_node_id != null) {
-                          left_text_id = left_text_node_id;
-                          series_callback();
+                      var leftTextNode = new Text(null, templateId, elementId, leftTextId, "left", leftText.trim().replace(/\n/g, ""));
+                      leftTextNode.save(function (leftTextNodeId) {
+                        if (leftTextNodeId != null) {
+                          leftTextId = leftTextNodeId;
+                          return seriesCallback();
                         } else {
-                          series_callback(new Error("failed to create left text of element"));
+                          return seriesCallback(new Error("failed to create left text of element"));
                         }
                       });
                     } else {
-                      series_callback();
+                      return seriesCallback();
                     }
                   } else {
-                    series_callback();
+                    return seriesCallback();
                   }
                 },
                 // calculate right_text
-                function(series_callback) {
+                function(seriesCallback) {
                   // node contains end_index
-                  if (contains_end) {
-                    second_text_child = child_index;
-                    var right_text = child_text.substring(local_end_index);
+                  if (containsEnd) {
+                    secondTextChild = childIndex;
+                    var rightText = childText.substring(localEndIndex);
 
-                    if (!isBlank(right_text)) {
+                    if (!isBlank(rightText)) {
                       // if end_index is at beginning of text, second_text_child should decrease so 2nd iteration looks at index for right_text
-                      if (local_end_index === 0) {
-                        second_text_child--;
+                      if (localEndIndex === 0) {
+                        secondTextChild--;
                       }
 
                       console.log("----------------RIGHT NODE TEXT----------------------");
-                      var right_text_node = new Text(null, template_id, element_id, right_text_id, "right", right_text.trim().replace(/\n/g, ""));
-                      right_text_node.save(function (right_text_node_id) {
-                        if (right_text_node_id != null) {
-                          right_text_id = right_text_node_id;
-                          series_callback();
+                      var rightTextNode = new Text(null, templateId, elementId, rightTextId, "right", rightText.trim().replace(/\n/g, ""));
+                      rightTextNode.save(function (rightTextNodeId) {
+                        if (rightTextNodeId != null) {
+                          rightTextId = rightTextNodeId;
+                          return seriesCallback();
                         } else {
-                          series_callback(new Error("failed to create right text of element"));
+                          return seriesCallback(new Error("failed to create right text of element"));
                         }
                       });
                     } else {
-                      series_callback();
+                      return seriesCallback();
                     }
                   } else {
-                    series_callback();
+                    return seriesCallback();
                   }
                 }
               ], function(err, result) {
                 if (err) {
                   console.log(err.message);
                 }
-                child_index++;
-                each_callback();
+                return eachCallback();
               });
             } else {
-              child_index++;
-              each_callback();
+              return eachCallback();
             }
           } else {
-            child_index++;
-            each_callback();
+            return eachCallback();
           }
         }
         else if (child.type === "tag") {
-          var child_element = element_dom.children(element_index);
-          var contains_start, contains_end, local_start_index, local_end_index, child_text;
+          var childElement = elementDom.children(elementIndex);
+          var childElementId;
 
           // create child element
-          var new_element = new Element(null, element_id, template_id, child_element[0].name, "child", 1, element_index);
-          new_element.save(function(child_element_id) {
-            child_elements[child_index] = child_element_id;
-            element_indices[child_index] = element_index;
+          var newElement = new Element(null, elementId, templateId, childElement[0].name, "child", 1, elementIndex);
+          newElement.save(function(newElementId) {
+            childElementId = newElementId;
+
             async.series([
-              /*function(series_callback) {
-                saveAttributes(child_element_id, child_element[0].attribs, series_callback);
+              /*function(seriesCallback) {
+                saveAttributes(child_element_id, child_element[0].attribs, seriesCallback);
               },*/
               // create children elements
-              function(series_callback) {
-                iterateChildren(CHILDREN_LIMIT, child_element, child_element_id, template_id, 1, $, series_callback);
-              },
+              /*function(seriesCallback) {
+                iterateChildren(CHILDREN_LIMIT, childElement, childElementId, templateId, 1, $, seriesCallback);
+              },*/
               // calculate left & right text
-              function(series_callback) {
+              function(seriesCallback) {
               // only do text calculations if (first and) second text_child indices have not been found
-                if (second_text_child == null) {
-                  getElementText($, child_element, function(text) {
+                if (secondTextChild == null) {
+                  getElementText($, childElement, function(text) {
                     text = text.replace(/&nbsp;/g, "");
                     text = entities.decode(text);
 
                     if (!isBlank(text)) {
-                      child_text = text;
-                      series_callback();
+                      childText = text;
+
+                      // possible to contain start_index
+                      if (characterIndex < startIndex) {
+                        containsStart = true;
+                        containsEnd = true;
+                        localStartIndex = startIndex - characterIndex;
+                        localEndIndex = endIndex - characterIndex;
+                      }
+                      // possible to contain end_index
+                      else if (characterIndex < endIndex) {
+                        containsStart = false;
+                        containsEnd = true;
+                        localEndIndex = endIndex - characterIndex;
+                      }
+                      // cannot contain any index
+                      else {
+                        containsStart = false;
+                        containsEnd = false;
+                      }
+
+                      // if first child, don't add space character to element text
+                      if (childIndex !== 0 && !firstIndex) {
+                        childText = " " + childText;
+                      }
+                      if (firstIndex) {
+                        firstIndex = false;
+                      }
+                      characterIndex += childText.length;
+
+                      // check if node contains end_index
+                      if (characterIndex < startIndex) {
+                        containsStart = false;
+                        containsEnd = false;
+                      }
+                      else if (characterIndex < endIndex) {
+                        containsEnd = false;
+                      }
+
+                      return seriesCallback();
                     } else {
-                      series_callback(new Error("blank text"));
+                      return seriesCallback(new Error("blank text"));
                     }
                   });
                 } else {
-                  series_callback();
-                }
-              },
-              function(series_callback) {
-                // only do text calculations if (first and) second text_child indices have not been found
-                if (second_text_child == null) {
-                  // possible to contain start_index
-                  if (character_index < start_index) {
-                    contains_start = true;
-                    contains_end = true;
-                    local_start_index = start_index - character_index;
-                    local_end_index = end_index - character_index;
-                  }
-                  // possible to contain end_index
-                  else if (character_index < end_index) {
-                    contains_start = false;
-                    contains_end = true;
-                    local_end_index = end_index - character_index;
-                  }
-                  // cannot contain any index
-                  else {
-                    contains_start = false;
-                    contains_end = false;
-                  }
-
-                  // if first child, don't add space character to element text
-                  if (child_index !== 0 && !first_index) {
-                    child_text = " " + child_text;
-                  }
-                  if (first_index) {
-                    first_index = false;
-                  }
-                  character_index += child_text.length;
-
-                  // check if node contains end_index
-                  if (character_index < start_index) {
-                    contains_start = false;
-                    contains_end = false;
-                  }
-                  else if (character_index < end_index) {
-                    contains_end = false;
-                  }
-                  series_callback();
-                } else {
-                  series_callback();
+                  return seriesCallback();
                 }
               },
               // create text nodes if current node contains start index
-              function(series_callback) {
-                if (first_text_child == null && contains_start) {
-                  first_text_child = child_index;
-                  var left_text = child_text.substring(0, local_start_index);
-                  if (!isBlank(left_text)) {
+              function(seriesCallback) {
+                if (firstTextChild == null && containsStart) {
+                  firstTextChild = childIndex;
+                  var leftText = childText.substring(0, localStartIndex);
+                  if (!isBlank(leftText)) {
                     // if start_index is at end of text, first_text_child should increase so 2nd iteration looks at index for left_text
-                    if (local_start_index === child_text.length) {
-                      first_text_child++;
+                    if (localStartIndex === childText.length) {
+                      firstTextChild++;
                     }
 
                     console.log("----------------LEFT NODE TEXT----------------------");
-                    var left_text_node = new Text(null, template_id, child_elements[child_index], left_text_id, "left", left_text.trim().replace(/\n/g, ""));
-                    left_text_node.save(function (left_text_node_id) {
-                      if (left_text_node_id != null) {
-                        left_text_id = left_text_node_id;
-                        series_callback();
+                    var leftTextNode = new Text(null, templateId, childElementId, leftTextId, "left", leftText.trim().replace(/\n/g, ""));
+                    leftTextNode.save(function (leftTextNodeId) {
+                      if (leftTextNodeId != null) {
+                        leftTextId = leftTextNodeId;
+                        return seriesCallback();
                       } else {
-                        series_callback(new Error("failed to create left text of element"));
+                        return seriesCallback(new Error("failed to create left text of element"));
                       }
                     });
                   } else {
-                    series_callback();
+                    return seriesCallback();
                   }
                 } else {
-                  series_callback();
+                  return seriesCallback();
                 }
               },
               // create text nodes if current node contains end index
-              function(series_callback) {
-                if (second_text_child == null && contains_end) {
-                  second_text_child = child_index;
-                  var right_text = child_text.substring(local_end_index);
+              function(seriesCallback) {
+                if (secondTextChild == null && containsEnd) {
+                  secondTextChild = childIndex;
+                  var rightText = childText.substring(localEndIndex);
 
-                  if (!isBlank(right_text)) {
+                  if (!isBlank(rightText)) {
                     // if end_index is at beginning of text, second_text_child should decrease so 2nd iteration looks at index for right_text
-                    if (local_end_index === 0) {
-                      second_text_child--;
+                    if (localEndIndex === 0) {
+                      secondTextChild--;
                     }
 
                     console.log("----------------RIGHT NODE TEXT----------------------");
-                    var right_text_node = new Text(null, template_id, child_elements[child_index], right_text_id, "right", right_text.trim().replace(/\n/g, ""));
-                    right_text_node.save(function (right_text_node_id) {
-                      if (right_text_node_id != null) {
-                        right_text_id = right_text_node_id;
-                        series_callback();
+                    var rightTextNode = new Text(null, templateId, childElementId, rightTextId, "right", rightText.trim().replace(/\n/g, ""));
+                    rightTextNode.save(function (rightTextNodeId) {
+                      if (rightTextNodeId != null) {
+                        rightTextId = rightTextNodeId;
+                        return seriesCallback();
                       } else {
-                        series_callback(new Error("failed to create right text of element"));
+                        return seriesCallback(new Error("failed to create right text of element"));
                       }
                     });
                   } else {
-                    series_callback();
+                    return seriesCallback();
                   }
                 } else {
-                  series_callback();
+                  return seriesCallback();
                 }
               }
             ], function(err, result) {
               if (err) {
                 console.log(err.message);
               }
-              element_index++;
-              child_index++;
-              each_callback();
+              elementIndex++;
+              return eachCallback();
             });
           });
         }
         // unknown node type
         else {
-          child_index++;
-          each_callback();
+          return eachCallback();
         }
       }, function(err) {
         if (err) {
-          callback(err);
+          return callback(err);
         } else {
-          callback();
+          return callback();
         }
       });
     },
@@ -923,34 +926,34 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     // create parent element, to use for finishing sibling element/text nodes
     function(callback) {
       // if element is not body (root), it will have a parent element
-      if (element_dom[0].type !== "root") {
-        var parent_dom = element_dom.parent();
-        // parent_dom is root
-        if (parent_dom.length === 0) {
-          parent_dom = $.root();
+      if (elementDom[0].type !== "root") {
+        var parentDom = elementDom.parent();
+        // parentDom is root
+        if (parentDom.length === 0) {
+          parentDom = $.root();
         }
 
         console.log("----------------PARENT ELEMENT----------------------");
-        var parent_element = new Element(null, element_id, template_id, parent_dom[0].name /* tag */, "parent", -1, null);
-        parent_element.save(function(new_parent_element_id) {
-          if (new_parent_element_id != null) {
-            parent_element_id = new_parent_element_id;
-            callback();
+        var parentElement = new Element(null, elementId, templateId, parentDom[0].name /* tag */, "parent", -1, null);
+        parentElement.save(function(newParentElementId) {
+          if (newParentElementId != null) {
+            parentElementId = newParentElementId;
+            return callback();
           } else {
-            callback(new Error("failed to create parent element"));
+            return callback(new Error("failed to create parent element"));
           }
         });
       } else {
-        callback();
+        return callback();
       }
     },
     // save parent element attributes
     /*function(callback) {
-      if (parent_element_id !== null) {
+      if (parentElementId !== null) {
         if (element_dom.parent().length === 0) {
-          saveAttributes(parent_element_id, $.root()[0].attribs, callback);
+          saveAttributes(parentElementId, $.root()[0].attribs, callback);
         } else {
-          saveAttributes(parent_element_id, element_dom.parent()[0].attribs, callback);
+          saveAttributes(parentElementId, element_dom.parent()[0].attribs, callback);
         }
       } else {
         callback();
@@ -958,24 +961,24 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     },*/
     // find order
     function(callback) {
-      root_order = 0;
-      if (parent_element_id != null) {
+      var rootOrder = 0;
+      if (parentElementId != null) {
         // root node
-        var parent_dom = element_dom.parent();
-        var root_node = parent_dom.prevObject[0];
+        var parentDom = elementDom.parent();
+        var rootNode = parentDom.prevObject[0];
 
-        for (var i = 0; i < parent_dom.children().length; i++) {
-          var child_dom = parent_dom.children(i);
-          if (child_dom[0] === root_node) {
-            root_order = i;
-            Element.getElementById(element_id, function(err, root_element) {
+        for (var i = 0; i < parentDom.children().length; i++) {
+          var child_dom = parentDom.children(i);
+          if (child_dom[0] === rootNode) {
+            rootOrder = i;
+            Element.getElementById(elementId, function(err, rootElement) {
               if (err) {
                 console.log(err.message);
                 return callback();
               } else {
-                console.log("Found order of root node " + root_order);
-                root_element.order = root_order;
-                return root_element.save(callback);
+                console.log("Found order of root node " + rootOrder);
+                rootElement.order = rootOrder;
+                return rootElement.save(callback);
               }
             });
             break;
@@ -987,29 +990,29 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     },
     // calculate left sibling elements & text
     /*function(callback) {
-      if (parent_element_id != null) {
+      if (parentElementId != null) {
         console.log("----------------LEFT SIBLINGS----------------------");
-        iterateSiblings("left", root_order, element_dom[0], element_dom, template_id, left_text_id, null, parent_element_id, $, callback);
+        iterateSiblings("left", rootOrder, element_dom[0], element_dom, template_id, left_text_id, null, parentElementId, $, callback);
       } else {
         callback();
       }
     },
     // calculate right sibling elements & text
     function(callback) {
-      if (parent_element_id != null) {
+      if (parentElementId != null) {
         console.log("----------------RIGHT SIBLINGS----------------------");
-        iterateSiblings("right", root_order, element_dom[0], element_dom, template_id, right_text_id, null, parent_element_id, $, callback);
+        iterateSiblings("right", rootOrder, element_dom[0], element_dom, template_id, right_text_id, null, parentElementId, $, callback);
       } else {
         callback();
       }
     },*/
     // calculate all parent elements
     function(callback) {
-      if (parent_element_id != null) {
+      if (parentElementId != null) {
         console.log("----------------PARENT ELEMENTS----------------------");
-        iterateParent(element_dom.parent(), parent_element_id, template_id, -1, $, callback);
+        iterateParent(elementDom.parent(), parentElementId, templateId, -1, $, callback);
       } else {
-        callback();
+        return callback();
       }
     }
   ], function(err, result) {
@@ -1018,12 +1021,12 @@ function generateTemplate(user_id, attribute, html, url_id, domain_id, group_id,
     } else {
       console.log("Completed generateTemplate method");
     }
-    return template_callback();
+    return templateCallback();
   });
 }
 
 // for each attribute, create ElementAttribute
-function saveAttributes(element_id, attributes, func_callback) {
+/*function saveAttributes(element_id, attributes, funcCallback) {
   if (attributes != null) {
     async.eachSeries(Object.keys(attributes), function(key, callback) {
       if (attributes.hasOwnProperty(key)) {
@@ -1039,183 +1042,183 @@ function saveAttributes(element_id, attributes, func_callback) {
       }
     }, function(err) {
       if (err) {
-        func_callback(new Error("An error occurred in saveAttributes for element " + element_id));
+        funcCallback(new Error("An error occurred in saveAttributes for element " + element_id));
       } else {
         console.log("Added attributes for element " + element_id);
-        func_callback();
+        funcCallback();
       }
     });
   } else {
-    func_callback();
+    funcCallback();
   }
-}
+}*/
 
 // iterates through all DOM children of parent_node and creates element and attributes
-function iterateChildren(level_limit, parent_dom, parent_element_id, template_id, parent_level, $, func_callback) {
-  if (parent_dom.children().length !== 0 && level_limit !== 0) {
-    var level = parent_level + 1;
+function iterateChildren(levelLimit, parentDom, parentElementId, templateId, parentLevel, $, funcCallback) {
+  if (parentDom.children().length !== 0 && levelLimit !== 0) {
+    var level = parentLevel + 1;
     var count = 0;
-    async.eachSeries(parent_dom.children(), function(child, callback) {
-      var child_dom = parent_dom.children(count);
-      var new_element = new Element(null, parent_element_id, template_id, child.name, "child", level, count);
+    async.eachSeries(parentDom.children(), function(child, callback) {
+      var childDom = parentDom.children(count);
+      var newElement = new Element(null, parentElementId, templateId, child.name, "child", level, count);
       count++;
-      new_element.save(function(element_id) {
-        if (element_id != null) {
-          //saveAttributes(element_id, child.attribs, function() {
-            iterateChildren(level_limit-1, child_dom, element_id, template_id, level, $, callback);
+      newElement.save(function(elementId) {
+        if (elementId != null) {
+          //saveAttributes(elementId, child.attribs, function() {
+            iterateChildren(levelLimit-1, childDom, elementId, templateId, level, $, callback);
           //});
         } else {
-          callback(new Error("failed to create child element"));
+          return callback(new Error("failed to create child element"));
         }
       });
     }, function(err) {
       if (err) {
-        func_callback(err);
+        return funcCallback(err);
       } else {
         console.log("Added child elements of level " + level);
-        func_callback();
+        return funcCallback();
       }
     });
   } else {
-    func_callback();
+    return funcCallback();
   }
 }
 
 // iterates through all DOM parents of parent_node and creates element and attributes
-function iterateParent(parent_dom, element_id, template_id, level, $, func_callback) {
-  var new_element;
+function iterateParent(parentDom, elementId, templateId, level, $, funcCallback) {
+  var newElement;
   level--;
   // not body element
-  if (parent_dom.parent().length !== 0) {
-    parent_dom = parent_dom.parent();
-    var tag = parent_dom[0].name;
+  if (parentDom.parent().length !== 0) {
+    parentDom = parentDom.parent();
+    var tag = parentDom[0].name;
 
-    new_element = new Element(null, element_id, template_id, tag, "parent", level, 0);
-    new_element.save(function(parent_element_id) {
-      if (parent_element_id != null) {
+    newElement = new Element(null, elementId, templateId, tag, "parent", level, 0);
+    newElement.save(function(parentElementId) {
+      if (parentElementId != null) {
         console.log("Added parent element of level " + level);
-        //saveAttributes(parent_element_id, parent_dom[0].attribs, function() {
+        //saveAttributes(parentElementId, parentDom[0].attribs, function() {
           async.series([
             // iterate down to parent children
             function(callback) {
-              iterateParentChildren(parent_dom, parent_element_id, parent_dom.prevObject[0], element_id, template_id, level, $, callback);
+              iterateParentChildren(parentDom, parentElementId, parentDom.prevObject[0], elementId, templateId, level, $, callback);
             },
             // iterate up to next parent node
             function(callback) {
-              iterateParent(parent_dom, parent_element_id, template_id, level, $, callback);
+              iterateParent(parentDom, parentElementId, templateId, level, $, callback);
             }
           ], function(err, result) {
             if (err) {
-              func_callback(err);
+              return funcCallback(err);
             } else {
               console.log("Completed iterateParent");
-              func_callback();
+              return funcCallback();
             }
           });
         //});
       } else {
-        func_callback(new Error("failed to create child element"));
+        return funcCallback(new Error("failed to create child element"));
       }
     });
   } else {
     // body element
     var bodyDom = $.root();
-    new_element = new Element(null, element_id, template_id, "body", "parent", level, null);
-    new_element.save(function(parent_element_id) {
-      if (parent_element_id != null) {
+    newElement = new Element(null, elementId, templateId, "body", "parent", level, null);
+    newElement.save(function(parentElementId) {
+      if (parentElementId != null) {
         console.log("Added body element at level " + level);
-        //saveAttributes(parent_element_id, bodyDom[0].attribs, function() {
+        //saveAttributes(parentElementId, bodyDom[0].attribs, function() {
           // iterate down to parent children
-          iterateParentChildren(bodyDom, parent_element_id, parent_dom[0], element_id, template_id, level, $, function() {
+          iterateParentChildren(bodyDom, parentElementId, parentDom[0], elementId, templateId, level, $, function() {
             console.log("Completed iterateParent");
-            func_callback();
+            return funcCallback();
           });
         //});
       } else {
-        func_callback(new Error("failed to create child element"));
+        return funcCallback(new Error("failed to create child element"));
       }
     });
   }
 }
 
 // iterates through all DOM parent children of parent_node, except for the original child node and creates element and attributes
-function iterateParentChildren(parent_dom, parent_element_id, child_node, child_element_id, template_id, parent_level, $, func_callback) {
-  if (parent_dom.children().length > 1) {
-    var level = parent_level + 1;
+function iterateParentChildren(parentDom, parentElementId, childNode, childElementId, templateId, parentLevel, $, funcCallback) {
+  if (parentDom.children().length > 1) {
+    var level = parentLevel + 1;
     var count = 0;
-    async.eachSeries(parent_dom.children(), function(child, callback) {
+    async.eachSeries(parentDom.children(), function(child, callback) {
       // ignore child node
-      if (child !== child_node) {
-        var child_dom = parent_dom.children(count);
-        var new_element = new Element(null, parent_element_id, template_id, child.name, "child", level, count);
+      if (child !== childNode) {
+        var childDom = parentDom.children(count);
+        var newElement = new Element(null, parentElementId, templateId, child.name, "child", level, count);
         count++;
-        new_element.save(function(element_id) {
-          if (element_id != null) {
+        newElement.save(function(elementId) {
+          if (elementId != null) {
             //saveAttributes(element_id, child.attribs, function() {
-              iterateChildren(CHILDREN_LIMIT, child_dom, element_id, template_id, level, $, callback);
+              iterateChildren(CHILDREN_LIMIT, childDom, elementId, templateId, level, $, callback);
             //});
           } else {
-            callback(new Error("failed to create child element"));
+            return callback(new Error("failed to create child element"));
           }
         });
       } else {
         // update child_node order
-        var root_order = count;
+        var rootOrder = count;
         count++;
-        Element.getElementById(child_element_id, function(err, child_element) {
+        Element.getElementById(childElementId, function(err, childElement) {
           if (err) {
-            callback();
+            return callback();
           } else {
-            child_element.order = root_order;
-            child_element.save(callback);
+            childElement.order = rootOrder;
+            childElement.save(callback);
           }
         });
       }
     }, function(err) {
       if (err) {
-        func_callback(err);
+        return funcCallback(err);
       } else {
         console.log("Added child elements of level " + level);
-        func_callback();
+        return funcCallback();
       }
     });
   } else {
-    Element.getElementById(child_element_id, function(err, child_element) {
+    Element.getElementById(childElementId, function(err, childElement) {
       if (err) {
-        func_callback();
+        return funcCallback();
       } else {
-        child_element.order = 0;
-        child_element.save(func_callback);
+        childElement.order = 0;
+        childElement.save(funcCallback);
       }
     });
   }
 }
 
 // iterate through siblings in one direction until there are no more siblings
-function iterateSiblings(direction, order, element_node, element_dom, template_id, text_id, element_id, parent_element_id, $, func_callback) {
+/*function iterateSiblings(direction, order, element_node, element_dom, template_id, text_id, element_id, parentElementId, $, funcCallback) {
   if (direction === "left" && element_node.prev != null) {
     element_node = element_node.prev;
   } else if (direction === "right" && element_node.next != null) {
     element_node = element_node.next;
   } else {
-    return func_callback();
+    return funcCallback();
   }
 
   // text node
   if (element_node.type === "text") {
     // if text node is not blank, create text node for parent
     if (!isBlank(element_node.data)) {
-      var new_text = new Text(null, template_id, parent_element_id, text_id, direction, element_node.data.trim().replace(/\n/g, ""));
+      var new_text = new Text(null, template_id, parentElementId, text_id, direction, element_node.data.trim().replace(/\n/g, ""));
       new_text.save(function(new_text_id) {
         if (new_text_id != null) {
-          iterateSiblings(direction, order, element_node, element_dom, template_id, new_text_id, element_id, parent_element_id, $, func_callback);
+          iterateSiblings(direction, order, element_node, element_dom, template_id, new_text_id, element_id, parentElementId, $, funcCallback);
           console.log("Completed iterateSiblings " + direction + " method for element node");
         } else {
-          func_callback("failed at creating sibling text for text node");
+          funcCallback("failed at creating sibling text for text node");
         }
       });
     } else {
-      iterateSiblings(direction, order, element_node, element_dom, template_id, text_id, element_id, parent_element_id, $, func_callback);
+      iterateSiblings(direction, order, element_node, element_dom, template_id, text_id, element_id, parentElementId, $, funcCallback);
     }
   }
   // element node
@@ -1231,10 +1234,10 @@ function iterateSiblings(direction, order, element_node, element_dom, template_i
     async.series([
       function(callback) {
         var level = 0;
-        var new_element = new Element(null, parent_element_id, template_id, element_dom[0].name, "sibling", level, order);
-        new_element.save(function(new_element_id) {
-          if (new_element_id != null) {
-            element_id = new_element_id;
+        var newElement = new Element(null, parentElementId, template_id, element_dom[0].name, "sibling", level, order);
+        newElement.save(function(newElement_id) {
+          if (newElement_id != null) {
+            element_id = newElement_id;
             iterateChildren(CHILDREN_LIMIT, element_dom, element_id, template_id, level, $, callback);
           } else {
             callback(new Error("failed at creating sibling element"));
@@ -1245,25 +1248,25 @@ function iterateSiblings(direction, order, element_node, element_dom, template_i
           var new_text = new Text(null, template_id, element_id, text_id, direction, element_dom.text().trim().replace(/\n/g, ""));
           new_text.save(function(new_text_id) {
             if (new_text_id != null) {
-              iterateSiblings(direction, order, element_node, element_dom, template_id, new_text_id, element_id, parent_element_id, $, callback);
+              iterateSiblings(direction, order, element_node, element_dom, template_id, new_text_id, element_id, parentElementId, $, callback);
             } else {
               callback(new Error("failed at creating sibling text for element node"));
             }
           });
         } else {
-          iterateSiblings(direction, order, element_node, element_dom, template_id, text_id, element_id, parent_element_id, $, callback);
+          iterateSiblings(direction, order, element_node, element_dom, template_id, text_id, element_id, parentElementId, $, callback);
         }
       }
     ], function(err, result) {
       if (err) {
-        func_callback(err);
+        funcCallback(err);
       } else {
         console.log("Completed iterateSiblings " + direction + " method for element node");
-        func_callback();
+        funcCallback();
       }
     });
   }
-}
+}*/
 
 // retrieves the text contents of a dom element
 function getElementText($, element, callback) {
@@ -1272,45 +1275,45 @@ function getElementText($, element, callback) {
   // iterate through all children of body element
   if (element.length > 0) {
     var children = element[0].children;
-    async.eachSeries(children, function(child, each_callback) {
-      iterateText(child, addText, params, function(returned_params) {
-        params = returned_params;
-        each_callback();
+    async.eachSeries(children, function(child, eachCallback) {
+      iterateText(child, addText, params, function(returnedParams) {
+        params = returnedParams;
+        return eachCallback();
       });
     }, function(err) {
       if (err) {
         console.log(err.message);
       }
-      callback(params.text);
+      return callback(params.text);
     });
   } else {
     console.log("element does not exist. no text retrieved");
-    callback("");
+    return callback("");
   }
 }
 
-function iterateText(node, method, method_params, callback) {
+function iterateText(node, method, methodParams, callback) {
   // run method for non-whitespace text nodes
   if (node.type === "text" && /\S/.test(node.data)) {
-    method(node, method_params, function(returned_params) {
-      callback(returned_params);
+    method(node, methodParams, function(returnedParams) {
+      return callback(returnedParams);
     });
   }
   // iterateText through children of non-style/script elements
   else if (node.type === "tag" && node.children && !/(style|script)/i.test(node.name)) {
-    async.eachSeries(node.children, function(child, each_callback) {
-      iterateText(child, method, method_params, function(returned_params) {
-        method_params = returned_params;
-        each_callback();
+    async.eachSeries(node.children, function(child, eachCallback) {
+      iterateText(child, method, methodParams, function(returnedParams) {
+        methodParams = returnedParams;
+        return eachCallback();
       });
     }, function(err) {
       if (err) {
         console.log(err.message);
       }
-      callback(method_params);
+      return callback(methodParams);
     });
   } else {
-    callback(method_params);
+    return callback(methodParams);
   }
 }
 
@@ -1326,7 +1329,7 @@ function addText(node, params, callback) {
   } else {
     text += node.data;
   }
-  callback({ "text": text, "trim": trim });
+  return callback({ "text": text, "trim": trim });
 }
 
 function isBlank(text) {

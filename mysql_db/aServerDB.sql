@@ -160,15 +160,12 @@ ENGINE = InnoDB;
 CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `template_id` INT NOT NULL,
-  `element_id` INT NULL,
-  `relation` ENUM('root','sibling','child','parent') NOT NULL,
-  `level` INT NOT NULL,
+  `index` INT NOT NULL,
   `tag_id` INT NOT NULL,
   `order` INT NULL,
   PRIMARY KEY (`id`),
   INDEX `fk_element_template_idx` (`template_id` ASC),
   INDEX `fk_element_tag_idx` (`tag_id` ASC),
-  INDEX `fk_element_element_idx` (`element_id` ASC),
   CONSTRAINT `fk_element_template`
     FOREIGN KEY (`template_id`)
     REFERENCES `aserver`.`ser_template` (`id`)
@@ -177,11 +174,6 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   CONSTRAINT `fk_element_tag`
     FOREIGN KEY (`tag_id`)
     REFERENCES `aserver`.`ser_html_tag` (`id`)
-    ON DELETE NO ACTION
-    ON UPDATE NO ACTION,
-  CONSTRAINT `fk_element_element`
-    FOREIGN KEY (`element_id`)
-    REFERENCES `aserver`.`ser_element` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;

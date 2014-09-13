@@ -331,7 +331,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                           var existingKey = existingKeys[i];
                           if (groupedData[group.group_name][key][rowKey].hasOwnProperty(existingKey)) {
                             // no exact match, possible replacement match
-                            if (formattedItems[compareRowIndex][existing_key] !== groupedData[group.group_name][key][rowKey][existingKey]) {
+                            if (formattedItems[compareRowIndex][existingKey] !== groupedData[group.group_name][key][rowKey][existingKey]) {
                               duplicate = false;
                               var replaceAttr = compareAttributeResults(formattedItems[compareRowIndex][existingKey], groupedData[group.group_name][key][rowKey][existingKey]);
                               if (!replaceAttr) {

@@ -1,9 +1,15 @@
 // element class
-var id, template_id, index, tag_id, order,
-_tag,
-TAG_TABLE = "ser_html_tag",
-TAG_COLUMN = "tag_name",
-Access = require("./simple_table");
+var id;
+var template_id;
+var tag_id;
+var _tag;
+var index;
+var order;
+
+var TAG_TABLE = "ser_html_tag";
+var TAG_COLUMN = "tag_name";
+var async = require("async");
+var Access = require("./simple_table");
 
 // constructor
 // tag can be either tag_id or tag
@@ -127,18 +133,24 @@ Element.getElementById = function(id, callback) {
 
 // exclude elements with index of -1 (children of root element)
 Element.getElementPathByTemplate = function(templateId, callback) {
-  Access.selectByColumn("ser_element", "template_id", templateId, "AND index > 0 ORDER BY index", function(result) {
-    if (result != null) {
+  var statement = "SELECT a.*, b.tag_name AS tag FROM ser_element AS a INNER JOIN ser_html_tag AS b ON a.tag_id = b.id " +
+                "WHERE a.template_id = " + templateId + " AND a.index >= 0 ORDER BY a.index";
+  var query = db.query(statement, function(err, rows) {
+    if (rows != null) {
       var elementPath = [];
-      for (var i = 0; i < result.length; i++) {
-        elementPath.push(new Element(result[i].id, result[i].template_id,
-                                     result[i].tag_id, result[i].index, result[i].order));
+      for (var i = 0; i < rows.length; i++) {
+        elementPath.push(new Element(rows[i].id, rows[i].template_id,
+                                     rows[i].tag_id, rows[i].index, rows[i].order));
+        // set _tag as html tag
+        elementPath[i]._tag = rows[i].tag;
       }
-      callback(null, elementPath);
+
+      return callback(null, elementPath);
     } else {
-      callback(new Error("No elements for templateId " + templateId));
+      return callback(new Error("No elements for templateId " + templateId));
     }
   });
+  console.log(query.sql);
 };
 
 module.exports = Element;

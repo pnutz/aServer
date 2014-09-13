@@ -18,7 +18,7 @@ async.series([
   function(callback) {
     global.attributes = { "groupedAttributes": {}, "individualAttributes": {} };
     var query = "SELECT * FROM ser_receipt_attribute WHERE group_id IS NULL;";
-    global.db.query(query, function(err, result) {
+    db.query(query, function(err, result) {
       if (err) {
         console.log(query);
         console.log(err.message);
@@ -56,7 +56,7 @@ async.series([
   function(callback) {
     var query = "SELECT a.id AS group_id, a.group_name AS groupname, b.id AS attribute_id, b.attribute_name AS attribute, b.data_type AS datatype " +
                 "FROM ser_receipt_attribute_group AS a INNER JOIN ser_receipt_attribute AS b ON a.id = b.group_id ORDER BY a.group_name;";
-    global.db.query(query, function(err, result) {
+    db.query(query, function(err, result) {
       if (err) {
         console.log(query);
         console.log(err.message);
@@ -107,7 +107,6 @@ async.series([
     });
   },
   function(callback) {
-    console.log(global.attributes);
     server.start();
     return callback();
   }

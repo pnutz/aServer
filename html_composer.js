@@ -1,25 +1,19 @@
-var cheerio = require("cheerio"),
-async = require("async"),
-Element = require("./model/element"),
-Template = require("./model/template"),
-TemplateDomain = require("./model/template_domain"),
-TemplateGroup = require("./model/template_group"),
-ReceiptAttribute = require("./model/receipt_attribute"),
-Text = require("./model/text"),
-Url = require("./model/url"),
-SimpleTable = require("./model/simple_table");
+var cheerio = require("cheerio");
+var async = require("async");
+
+var Element = require("./model/element");
+var Template = require("./model/template");
+var TemplateDomain = require("./model/template_domain");
+var TemplateGroup = require("./model/template_group");
+var Text = require("./model/text");
+var Url = require("./model/url");
+var SimpleTable = require("./model/simple_table");
 
 exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
   var domainId;
-  var attribute;
-  var attributeId;
-  var templates;
   var $;
-  var rowAttributeId;
-  var attributeGroups;
-  var groupedData = {};
   // default create these attributes
-  var jsonMessage = { date: "", vendor: "", transaction: "", total: "", templates: {}, elementPaths: {} };
+  var jsonMessage = { date: "", vendor: "", transaction: "", total: "", items: {}, templates: {}, elementPaths: {} };
 
   async.series([
     // load domain
@@ -29,7 +23,12 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
         // found domain
         if (_domainId != null) {
           domainId = _domainId;
-          $ = cheerio.load("<body>" + html + "</body>");
+          // if body tag doesn't exist in html
+          if (html.indexOf("<body") === -1) {
+            $ = cheerio.load("<body>" + html + "</body>");
+          } else {
+            $ = cheerio.load(html);
+          }
           console.log("Created DOM");
           return callback();
         } else {
@@ -39,82 +38,82 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
     },
     // load attribute & build json message for attribute
     function(callback) {
-      // select all rows of ser_receipt_attribute that are not grouped
-      ReceiptAttribute.getIndividualReceiptAttributes(function(attributes) {
-        async.eachSeries(attributes, function(attr, eachCallback) {
-          attribute = attr.name;
-          attributeId = attr.id;
-          console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
+      var attrKeys = Object.keys(global.attributes.individualAttributes);
+      async.eachSeries(attrKeys, function(attr, eachCallback) {
+        var templates;
+        var attribute = attr;
+        var attributeId = global.attributes.individualAttributes[attr].id;
+        console.log("----------------LOAD ATTRIBUTE " + attribute + "----------------------");
 
-          // calculations for attribute
-          async.series([
-            // load all templates for attribute
-            function(seriesCallback) {
-              console.log("----------------LOAD TEMPLATES----------------------");
-              TemplateDomain.getTemplatesByDomain(domainId, attributeId, function(_templates) {
-                // found templates
-                if (_templates != null && _templates.length > 0) {
-                  templates = _templates;
-                } else {
-                  templates = null;
+        // calculations for attribute
+        async.series([
+          // load all templates for attribute
+          function(seriesCallback) {
+            console.log("----------------LOAD TEMPLATES----------------------");
+            TemplateDomain.getTemplatesByDomain(domainId, attributeId, function(_templates) {
+              // found templates
+              if (_templates != null && _templates.length > 0) {
+                templates = _templates;
+              } else {
+                templates = null;
+                jsonMessage[attribute] = "";
+              }
+              return seriesCallback();
+            });
+          },
+          // iterate through templates to find text
+          function(seriesCallback) {
+            if (templates != null) {
+              async.eachSeries(templates, function(template, eachCallback) {
+                console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
+                processTemplate(template, $, null, null, function(templateResult, elementPath) {
+                  debugger;
+                  if (templateResult != null && templateResult !== "") {
+                    // return found text to add to message
+                    jsonMessage[attribute] = templateResult;
+                    jsonMessage.templates[attribute] = template.id;
+                    jsonMessage.elementPaths[attribute] = elementPath;
+                    return eachCallback(new Error(true));
+                  } else {
+                    TemplateDomain.getTemplateDomainByIds(domainId, template.id, function(templateDomain) {
+                      if (templateDomain != null) {
+                        templateDomain.total_count++;
+                        templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
+                        templateDomain.save(eachCallback);
+                      } else {
+                        return eachCallback();
+                      }
+                    });
+                  }
+                });
+              }, function(err) {
+                if (err && err.message !== "true") {
+                  jsonMessage[attribute] = "";
+                  console.log(err.message);
+                } else if (!err) {
                   jsonMessage[attribute] = "";
                 }
                 return seriesCallback();
               });
-            },
-            // iterate through templates to find text
-            function(seriesCallback) {
-              if (templates != null) {
-                async.eachSeries(templates, function(template, eachCallback) {
-                  console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
-                  processTemplate(template, $, null, null, function(templateResult, elementId, elementPath) {
-                    if (templateResult != null && templateResult !== "") {
-                      // return found text to add to message
-                      jsonMessage[attribute] = templateResult;
-                      jsonMessage.templates[attribute] = template.id;
-                      jsonMessage.elementPaths[attribute] = elementPath;
-                      return eachCallback(new Error(true));
-                    } else {
-                      TemplateDomain.getTemplateDomainByIds(domainId, template.id, function(templateDomain) {
-                        if (templateDomain != null) {
-                          templateDomain.total_count++;
-                          templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
-                          templateDomain.save(eachCallback);
-                        } else {
-                          return eachCallback();
-                        }
-                      });
-                    }
-                  });
-                }, function(err) {
-                  if (err && err.message !== "true") {
-                    jsonMessage[attribute] = "";
-                    console.log(err.message);
-                  } else if (!err) {
-                    jsonMessage[attribute] = "";
-                  }
-                  return seriesCallback();
-                });
-              } else {
-                return seriesCallback();
-              }
-            }
-          ], function(err, result) {
-            if (err) {
-              return eachCallback(new Error(err.message));
             } else {
-              return eachCallback();
+              return seriesCallback();
             }
-          });
-        }, function(err) {
+          }
+        ], function(err, result) {
           if (err) {
-            return callback(new Error(err.message));
+            return eachCallback(new Error(err.message));
           } else {
-            return callback();
+            return eachCallback();
           }
         });
+      }, function(err) {
+        if (err) {
+          return callback(new Error(err.message));
+        } else {
+          return callback();
+        }
       });
-    },
+    }/*,
     // label row html elements in DOM
     function(callback) {
       console.log("----------------PREPARE $ FOR GROUPED TEMPLATES----------------------");
@@ -152,48 +151,26 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
         }
       }
       return callback();
-    },
-    // set rowAttributeId
-    function(callback) {
-      SimpleTable.getIdByValue("ser_receipt_attribute", "attribute_name", "row", function(rowId) {
-        rowAttributeId = rowId;
-        return callback();
-      });
-    },
-    // set attributeGroups
-    function(callback) {
-      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(resultGroups) {
-        if (resultGroups !== null) {
-          attributeGroups = resultGroups;
-          return callback();
-        } else {
-          return callback(new Error("No receipt attribute groups found"));
-        }
-      });
-    },
+    },*/
     // load grouped attributes & build json message for attribute
-    function(callback) {
-      async.eachSeries(attributeGroups, function(group, eachCallback) {
+    /*function(callback) {
+      var rowAttributeId = global.attributes.groupedAttributes.items.row.id;
+      var groupedData = {};
+
+      async.eachSeries(Object.keys(global.attributes.groupedAttributes), function(group, eachCallback) {
         var templateGroups;
+        var groupedAttrs = Object.keys(global.attributes.groupedAttributes[group]);
         var groupedAttributes = {};
+        for (var i = 0; i < groupedAttrs.length; i++) {
+          if (groupedAttrs[i] !== "id") {
+            groupedAttributes[global.attributes.groupedAttributes[group][groupedAttrs[i]].id] = groupedAttrs[i];
+          }
+        }
+
         async.series([
-          // set grouped attributes
-          function(seriesCallback) {
-            ReceiptAttribute.getGroupedReceiptAttributes(group.id, function(attributes) {
-              if (attributes != null) {
-                for (var i = 0; i < attributes.length; i++) {
-                  var attribute = attributes[i];
-                  groupedAttributes[attribute.id] = attribute.name;
-                }
-                return seriesCallback();
-              } else {
-                return seriesCallback(new Error("No receipt attributes for attribute group"));
-              }
-            });
-          },
           // set templateGroups for attribute_group and domainId
           function(seriesCallback) {
-            TemplateGroup.getTemplateGroups(group.id, domainId, function(resultGroups) {
+            TemplateGroup.getTemplateGroups(global.attributes.groupedAttributes[group].id, domainId, function(resultGroups) {
               if (resultGroups != null) {
                 templateGroups = resultGroups;
                 seriesCallback();
@@ -211,10 +188,10 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                   console.log("----------------PROCESS GROUPED TEMPLATES----------------------");
                   processGroupedTemplates(_templates, $, rowAttributeId, domainId, groupedAttributes, function(results) {
                     if (results != null) {
-                      if (groupedData[group.group_name] == null) {
-                        groupedData[group.group_name] = {};
+                      if (groupedData[group] == null) {
+                        groupedData[group] = {};
                       }
-                      groupedData[group.group_name][templateGroup.id] = results;
+                      groupedData[group][templateGroup.id] = results;
                     }
                     return eachCallback2();
                   });
@@ -233,11 +210,11 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
           },
           // remove duplicate results and attach results to jsonMessage
           function(seriesCallback) {
-            if (groupedData[group.group_name] != null) {
+            if (groupedData[group] != null) {
               var formattedItems = {};
-              jsonMessage.templates[group.group_name] = {};
-              jsonMessage.elementPaths[group.group_name] = {};
-              var keys = Object.keys(groupedData[group.group_name]);
+              jsonMessage.templates[group] = {};
+              jsonMessage.elementPaths[group] = {};
+              var keys = Object.keys(groupedData[group]);
               var nonRowIndex = 0;
               // grouped attribute keys, except row attribute
               var attributeKeys = Object.keys(groupedAttributes);
@@ -245,7 +222,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
 
               // loop through each template_group
               async.eachSeries(keys, function(key, eachCallback) {
-                var rowKeys = Object.keys(groupedData[group.group_name][key]);
+                var rowKeys = Object.keys(groupedData[group][key]);
 
                 // loop through each row in item
                 async.eachSeries(rowKeys, function(rowKey, eachCallback2) {
@@ -256,15 +233,15 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                       async.eachSeries(attributeKeys, function(attributeKey, eachCallback3) {
                         var attr = groupedAttributes[attributeKey];
                         // attribute already exists for row
-                        if (formattedItems[rowKey].hasOwnProperty(attr) && groupedData[group.group_name][key][rowKey].hasOwnProperty(attr)) {
-                          var replaceAttr = compareAttributeResults(formattedItems[rowKey][attr], groupedData[group.group_name][key][rowKey][attr]);
+                        if (formattedItems[rowKey].hasOwnProperty(attr) && groupedData[group][key][rowKey].hasOwnProperty(attr)) {
+                          var replaceAttr = compareAttributeResults(formattedItems[rowKey][attr], groupedData[group][key][rowKey][attr]);
                           if (replaceAttr) {
                             // lower probability for old template
-                            TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group.group_name][rowKey][attr], function(templateDomain) {
+                            TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group][rowKey][attr], function(templateDomain) {
                               // replace attribute
-                              formattedItems[rowKey][attr] = groupedData[group.group_name][key][rowKey][attr];
-                              jsonMessage.templates[group.group_name][rowKey][attr] = groupedData[group.group_name][key].templates[rowKey][attr];
-                              jsonMessage.elementPaths[group.group_name][rowKey] = groupedData[group.group_name][key].elementPaths;
+                              formattedItems[rowKey][attr] = groupedData[group][key][rowKey][attr];
+                              jsonMessage.templates[group][rowKey][attr] = groupedData[group][key].templates[rowKey][attr];
+                              jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths;
 
                               if (templateDomain != null) {
                                 templateDomain.total_count++;
@@ -276,7 +253,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                             });
                           } else {
                             // lower probability for new template
-                            TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group.group_name][key].templates[rowKey][attr], function(templateDomain) {
+                            TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group][key].templates[rowKey][attr], function(templateDomain) {
                               if (templateDomain != null) {
                                 templateDomain.total_count++;
                                 templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
@@ -289,10 +266,10 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                         }
                         // attribute does not exist for row, but exists for current template group
                         else {
-                          if (groupedData[group.group_name][key][rowKey].hasOwnProperty(attr)) {
-                            formattedItems[rowKey][attr] = groupedData[group.group_name][key][rowKey][attr];
-                            jsonMessage.templates[group.group_name][rowKey][attr] = groupedData[group.group_name][key].templates[rowKey][attr];
-                            jsonMessage.elementPaths[group.group_name][rowKey] = groupedData[group.group_name][key].elementPaths;
+                          if (groupedData[group][key][rowKey].hasOwnProperty(attr)) {
+                            formattedItems[rowKey][attr] = groupedData[group][key][rowKey][attr];
+                            jsonMessage.templates[group][rowKey][attr] = groupedData[group][key].templates[rowKey][attr];
+                            jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths;
                           }
                           return eachCallback3();
                         }
@@ -305,9 +282,9 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                     }
                     // row does not exist, add row
                     else {
-                      formattedItems[rowKey] = groupedData[group.group_name][key][rowKey];
-                      jsonMessage.templates[group.group_name][rowKey] = groupedData[group.group_name][key].templates[rowKey];
-                      jsonMessage.elementPaths[group.group_name][rowKey] = groupedData[group.group_name][key].elementPaths;
+                      formattedItems[rowKey] = groupedData[group][key][rowKey];
+                      jsonMessage.templates[group][rowKey] = groupedData[group][key].templates[rowKey];
+                      jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths;
                       return eachCallback2();
                     }
                   }
@@ -320,7 +297,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
 
                     while (compareRowIndex < nonRowIndex) {
                       var existingKeys = Object.keys(formattedItems[compareRowIndex]);
-                      var newKeys = Object.keys(groupedData[group.group_name][key][rowKey]);
+                      var newKeys = Object.keys(groupedData[group][key][rowKey]);
                       // existing item has the same # of attributes as new item
                       if (existingKeys.length === newKeys.length) {
                         // track if match is duplicate or replacement
@@ -329,11 +306,11 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
 
                         for (var i = 0; i < existingKeys.length; i++) {
                           var existingKey = existingKeys[i];
-                          if (groupedData[group.group_name][key][rowKey].hasOwnProperty(existingKey)) {
+                          if (groupedData[group][key][rowKey].hasOwnProperty(existingKey)) {
                             // no exact match, possible replacement match
-                            if (formattedItems[compareRowIndex][existing_key] !== groupedData[group.group_name][key][rowKey][existingKey]) {
+                            if (formattedItems[compareRowIndex][existingKey] !== groupedData[group][key][rowKey][existingKey]) {
                               duplicate = false;
-                              var replaceAttr = compareAttributeResults(formattedItems[compareRowIndex][existingKey], groupedData[group.group_name][key][rowKey][existingKey]);
+                              var replaceAttr = compareAttributeResults(formattedItems[compareRowIndex][existingKey], groupedData[group][key][rowKey][existingKey]);
                               if (!replaceAttr) {
                                 console.log("no match found");
                                 noMatchFound = true;
@@ -372,7 +349,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                         var attr = groupedAttributes[attributeKey];
                         // attribute exists for row
                         if (formattedItems[matchIndex].hasOwnProperty(attr)) {
-                          TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group.group_name][matchIndex][attr], function(templateDomain) {
+                          TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group][matchIndex][attr], function(templateDomain) {
                             if (templateDomain != null) {
                               templateDomain.total_count++;
                               templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
@@ -389,9 +366,9 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                           console.log(err2.message);
                         }
 
-                        formattedItems[matchIndex] = groupedData[group.group_name][key][rowKey];
-                        jsonMessage.templates[group.group_name][matchIndex] = groupedData[group.group_name][key].templates[rowKey];
-                        jsonMessage.elementPaths[group.group_name][matchIndex] = groupedData[group.group_name][key].elementPaths;
+                        formattedItems[matchIndex] = groupedData[group][key][rowKey];
+                        jsonMessage.templates[group][matchIndex] = groupedData[group][key].templates[rowKey];
+                        jsonMessage.elementPaths[group][matchIndex] = groupedData[group][key].elementPaths;
                         return eachCallback2();
                       });
                     }
@@ -401,8 +378,8 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                       async.eachSeries(attributeKeys, function(attributeKey, eachCallback3) {
                         var attr = groupedAttributes[attributeKey];
                         // attribute exists for row
-                        if (groupedData[group.group_name][key][rowKey].hasOwnProperty(attr)) {
-                          TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group.group_name][key].templates[rowKey][attr], function(templateDomain) {
+                        if (groupedData[group][key][rowKey].hasOwnProperty(attr)) {
+                          TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group][key].templates[rowKey][attr], function(templateDomain) {
                             if (templateDomain != null) {
                               templateDomain.total_count++;
                               templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
@@ -423,9 +400,9 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                     }
                     // add new item
                     else {
-                      formattedItems[nonRowIndex] = groupedData[group.group_name][key][rowKey];
-                      jsonMessage.templates[group.group_name][nonRowIndex] = groupedData[group.group_name][key].templates[rowKey];
-                      jsonMessage.elementPaths[group.group_name][nonRowIndex] = groupedData[group.group_name][key].elementPaths;
+                      formattedItems[nonRowIndex] = groupedData[group][key][rowKey];
+                      jsonMessage.templates[group][nonRowIndex] = groupedData[group][key].templates[rowKey];
+                      jsonMessage.elementPaths[group][nonRowIndex] = groupedData[group][key].elementPaths;
                       nonRowIndex++;
                       return eachCallback2();
                     }
@@ -478,7 +455,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                     console.log(err2.message);
                   }
                   // set jsonMessage attribute groups
-                  jsonMessage[group.group_name] = formattedItems;
+                  jsonMessage[group] = formattedItems;
                   return seriesCallback();
                 });
               });
@@ -499,20 +476,38 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
         }
         return callback();
       });
-    }
+    }*/
   ], function(err, result) {
     if (err) {
       console.log(err.message);
     } else {
       console.log("Completed readTemplate method");
     }
+    debugger;
     return jsonCallback(jsonMessage);
   });
 };
 
 // compares template with $ html dom, returns value if matches, null if doesn't match
 function processTemplate(template, $, matchClass, bodyElementId, callback) {
-  constructElementPath(template.id, $, matchClass, bodyElementId, function(selection, elementId, elementPath) {
+  traverseElementPath(template.id, $, function(err, elementPath, element) {
+    debugger;
+    if (err) {
+      console.log(err.message);
+      return callback();
+    } else {
+      findTextSelection(template.id, element, function(result) {
+        debugger;
+        if (result !== "") {
+          return callback(result, elementPath);
+        } else {
+          return callback();
+        }
+      });
+    }
+  });
+
+  /*constructElementPath(template.id, $, matchClass, bodyElementId, function(selection, elementId, elementPath) {
     if (selection != null) {
       // calculate text off of selection
       findTextSelection(template.id, selection, function(result) {
@@ -525,17 +520,16 @@ function processTemplate(template, $, matchClass, bodyElementId, callback) {
     } else {
       return callback(null);
     }
-  });
+  });*/
 }
 
 // forms text from selection that matches template text and returns it (or empty string if it can't be found)
-function findTextSelection(templateId, selection, funcCallback) {
+function findTextSelection(templateId, element, funcCallback) {
   var textNode;
-  var element;
   var leftText;
   var rightText;
   var leftIndex;
-  var textResult = selection.text().trim().replace(/\n/g, "");
+  var textResult = element.text().trim().replace(/\n/g, "");
   var negative = false;
 
   console.log("----------------CALCULATE TEXT----------------------");
@@ -551,55 +545,29 @@ function findTextSelection(templateId, selection, funcCallback) {
         }
       });
     },
-    // get element from textNode
-    function(callback) {
-      if (textNode.element_id != null) {
-        Element.getElementById(textNode.element_id, function(err, rootElement) {
-          if (err) {
-            return callback(new Error("root element not found"));
-          } else {
-            element = rootElement;
-            return callback();
-          }
-        });
-      } else {
-        return callback(new Error("textNode does not have an element_id"));
-      }
-    },
-    // get left text node if it exists and is under root element
+    // get left text node if it exists
     function(callback) {
       textNode.left = function(leftResult) {
+        debugger;
         if (leftResult != null) {
-          Element.getElementById(leftResult.element_id, function(err, leftElement) {
-            // leftResult element cannot be a sibling
-            if (leftElement != null && leftElement.relation !== "sibling") {
-              leftText = leftResult;
-            }
-            return callback();
-          });
-        } else {
-          return callback();
+          leftText = leftResult;
         }
+        return callback();
       };
     },
-    // get right text node if it exists and is under root element
+    // get right text node if it exists
     function(callback) {
       textNode.right = function(rightResult) {
+        debugger;
         if (rightResult != null) {
-          Element.getElementById(rightResult.element_id, function(err, rightElement) {
-            // rightResult element cannot be a sibling
-            if (rightElement != null && rightElement.relation !== "sibling") {
-              rightText = rightResult;
-            }
-            return callback();
-          });
-        } else {
-          return callback();
+          rightText = rightResult;
         }
+        return callback();
       };
     },
     // calculate textResult from left & right text
     function(callback) {
+      debugger;
       // calculation for finding leftText match and for money values to find negatives
       if (leftText != null) {
         leftIndex = textResult.indexOf(leftText.text);
@@ -664,6 +632,48 @@ function findTextSelection(templateId, selection, funcCallback) {
       return funcCallback(null);
     } else {
       return funcCallback(textResult);
+    }
+  });
+}
+
+// traverse from body to root element
+// returns err, elementPath, rootElement
+// for row element, instead just calculate row first and return row element as root
+function traverseElementPath(templateId, $, callback) {
+  var element = $("body");
+  var elementPath = [];
+
+  Element.getElementPathByTemplate(templateId, function(err, elementArray) {
+    if (err) {
+      return callback(err);
+    } else {
+      for (var i = 0; i < elementArray.length; i++) {
+        elementPath.push(elementArray[i].order);
+        if (i !== 0) {
+          element = element.children();
+          if (element.length > 0) {
+            element = element.eq(elementArray[i].order);
+          }
+
+          if (element.length === 0) {
+            return callback(new Error("elementPath param error"));
+          }
+
+          // check if tag matches template
+          if (elementArray[i]._tag !== element[0].name) {
+            return callback(new Error("tag does not match"));
+          }
+        }
+      }
+
+      return callback(null, elementPath, element);
+
+      // return elementPath to send to chrome extension
+      // return element to calculate text from
+      // elementId is for rowElementId. change how this is calculated - calculate row first?
+      // for each row, run all templates - need to
+      // more efficient to
+
     }
   });
 }
@@ -881,7 +891,6 @@ function processGroupedTemplates(templates, $, rowAttributeId, domainId, grouped
             if (template.attribute_id !== rowAttributeId) {
               // different function
               processTemplate(template, $, rowClass, rowElementId[template.id], function(templateResult) {
-                // match found, store element_id for template and json results (can be empty string)
                 if (templateResult != null) {
                   if (jsonResults[tableRowId] == null) {
                     jsonResults[tableRowId] = {};

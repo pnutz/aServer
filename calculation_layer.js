@@ -1,7 +1,5 @@
-var cheerio = require("cheerio"),
-async = require("async"),
-ReceiptAttribute = require("./model/receipt_attribute"),
-SimpleTable = require("./model/simple_table");
+var cheerio = require("cheerio");
+var async = require("async");
 
 exports.applyCalculations = function(jsonMessage, html, domain, callback) {
   console.log("----------------CALCULATION LAYER----------------------");
@@ -10,40 +8,20 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
   var individualAttributes = JSON.parse(JSON.stringify(jsonMessage));
   delete individualAttributes["templates"];
   delete individualAttributes["elementPaths"];
-  var keys = [];
-  var groupedKeys = [];
+
   var documentText = "";
   var textNodes = [];
 
+  var groupedKeys = [];
+  // remove grouped attr from individualAttributes and add them to groupedKeys
+  var attrGroups = Object.keys(global.attributes.groupedAttributes);
+  for (var i = 0; i < attrGroups.length; i++) {
+    groupedKeys.push(attrGroups[i]);
+    delete individualAttributes[attrGroups[i]];
+  }
+  var keys = Object.keys(individualAttributes);
+
   async.series([
-    // remove grouped attr from individualAttributes and add them to groupedKeys
-    function(seriesCallback) {
-      SimpleTable.selectByColumn("ser_receipt_attribute_group", "'TRUE'", "TRUE", "", function(resultGroups) {
-        if (resultGroups !== null) {
-          async.eachSeries(resultGroups, function(group, eachCallback) {
-            if (jsonMessage.hasOwnProperty(group.group_name)) {
-              groupedKeys.push(group);
-              delete individualAttributes[group.group_name];
-            }
-            eachCallback();
-          },
-          function(err) {
-            if (err) {
-              console.log(err.message);
-            }
-            seriesCallback();
-          });
-        } else {
-          console.log("No receipt attribute groups found");
-          seriesCallback();
-        }
-      });
-    },
-    // set keys from individualAttributes
-    function(seriesCallback) {
-      keys = Object.keys(individualAttributes);
-      seriesCallback();
-    },
     // initialize text nodes and documentText
     function(seriesCallback) {
       initializeContentSearch($, function(results) {
@@ -51,129 +29,103 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
           documentText = results.text;
           textNodes = results.textNodes;
         }
-        seriesCallback();
+        return seriesCallback();
       });
     },
     // find default value for all independent receipt attributes
     function(seriesCallback) {
-      async.eachSeries(keys, function(key, eachCallback) {
-        ReceiptAttribute.getReceiptAttributeByName(key, function(err, attribute) {
-          if (err) {
-            console.log(err.message);
-          }
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        // find default value if no result was found
+        if (jsonMessage[key] === "") {
+          var result = findDefaultValue($, key, documentText, domain, textNodes);
+          if (result != null && result.value !== "") {
+            jsonMessage[key] = result.value;
 
-          if (attribute != null) {
-            // find default value if no result was found
-            if (jsonMessage[key] === "") {
-              var result = findDefaultValue($, key, documentText, domain, textNodes);
-              if (result != null && result.value !== "") {
-                jsonMessage[key] = result.value;
-
-                if (result.elementPath != null) {
-                  jsonMessage.elementPaths[key] = result.elementPath;
-                }
-              }
-
-              // convert values to correct datatype
-              result = convertAttributeDataType(jsonMessage[key], attribute.datatype);
-              jsonMessage[key] = result;
-              if (result === "") {
-                delete jsonMessage.elementPaths[key];
-              }
+            if (result.elementPath != null) {
+              jsonMessage.elementPaths[key] = result.elementPath;
             }
           }
-          eachCallback();
-        });
-      },
-      function(err) {
-        if (err) {
-          console.log(err.message);
+
+          // convert values to correct datatype
+          result = convertAttributeDataType(jsonMessage[key], global.attributes.individualAttributes[key].datatype);
+          jsonMessage[key] = result;
+          if (result === "") {
+            delete jsonMessage.elementPaths[key];
+          }
         }
-        seriesCallback();
-      });
+      }
+      return seriesCallback();
     },
     // find default value for all grouped receipt attributes
     function(seriesCallback) {
       // loop through each receipt attribute group
-      async.eachSeries(groupedKeys, function(key, eachCallback) {
-        var groupAttributes;
+      async.eachSeries(groupedKeys, function(group, eachCallback) {
+        var groupAttributes = [];
+        var groupedAttrs = Object.keys(global.attributes.groupedAttributes[group]);
+        for (var i = 0; i < groupedAttrs.length; i++) {
+          if (groupedAttrs[i] !== "id") {
+            groupAttributes.push(groupedAttrs[i]);
+          }
+        }
         var itemsToDelete = [];
-        async.series([
-          // get receipt attributes for receipt attribute group
-          function(seriesCallback2) {
-            ReceiptAttribute.getGroupedReceiptAttributes(key.id, function(attributes) {
-              if (attributes !== null) {
-                groupAttributes = attributes;
-                seriesCallback2();
-              } else {
-                seriesCallback2(new Error(key.group_name + " receipt group has no attributes"));
-              }
-            });
-          },
-          // loop through receipt items for group in jsonMessage
-          function(seriesCallback2) {
-            var itemKeys = Object.keys(jsonMessage[key.group_name]);
 
-            for (var i = 0; i < itemKeys.length; i++) {
-              var itemKey = itemKeys[i];
+        // loop through receipt items for group in jsonMessage
+        var itemKeys = Object.keys(jsonMessage[group]);
+        for (var i = 0; i < itemKeys.length; i++) {
+          var itemKey = itemKeys[i];
 
-              // loop through each attribute in group for item
-              for (var j = 0; j < groupAttributes.length; j++) {
-                var attr = groupAttributes[j];
+          // loop through each attribute in group for item
+          for (var j = 0; j < groupAttributes.length; j++) {
+            var attr = groupAttributes[j];
 
-                if (attr !== "row") {
-                  // if item contains attribute and it is a real value, check validity
-                  if (jsonMessage[key.group_name][itemKey].hasOwnProperty(attr.name) && jsonMessage[key.group_name][itemKey] !== "") {
-                    var isValid = checkInvalidItem(jsonMessage[key.group_name][itemKey][attr.name]);
-                    // if item is invalid, store key and itemKey for deleting
-                    console.log("valid?: " + jsonMessage[key.group_name][itemKey][attr.name] + " " + isValid);
-                    if (!isValid) {
-                      itemsToDelete.push(itemKey);
-                    }
-                  }
-                  // if item needs attribute
-                  else {
-                    var result = findDefaultValue($, attr.name, documentText, domain, textNodes);
-                    if (result != null) {
-                      jsonMessage[key.group_name][itemKey][attr.name] = result.value;
-                    }
-                  }
-
-                  // convert values to correct datatype
-                  jsonMessage[key.group_name][itemKey][attr.name] = convertAttributeDataType(jsonMessage[key.group_name][itemKey][attr.name], attr.datatype);
+            if (attr !== "row") {
+              // if item contains attribute and it is a real value, check validity
+              if (jsonMessage[group][itemKey].hasOwnProperty(attr.name) && jsonMessage[group][itemKey] !== "") {
+                var isValid = checkInvalidItem(jsonMessage[group][itemKey][attr.name]);
+                // if item is invalid, store key and itemKey for deleting
+                console.log("valid?: " + jsonMessage[group][itemKey][attr.name] + " " + isValid);
+                if (!isValid) {
+                  itemsToDelete.push(itemKey);
                 }
               }
-            }
-            seriesCallback2();
-          }
-        ], function (err) {
-          if (err) {
-            console.log(err.message);
-          }
-          // remove receipt items that are invalid
-          for (var i = 0; i < itemsToDelete.length; i++) {
-            var deleteKey = itemsToDelete[i];
-            if (jsonMessage[key.group_name][deleteKey] !== null) {
-              delete jsonMessage[key.group_name][deleteKey];
-              delete jsonMessage.templates[key.group_name][deleteKey];
-              delete jsonMessage.elementPaths[key.group_name][deleteKey];
+              // if item needs attribute
+              else {
+                var result = findDefaultValue($, attr.name, documentText, domain, textNodes);
+                if (result != null) {
+                  jsonMessage[group][itemKey][attr.name] = result.value;
+                }
+              }
+
+              // convert values to correct datatype
+              jsonMessage[group][itemKey][attr.name] = convertAttributeDataType(jsonMessage[group][itemKey][attr.name], attr.datatype);
             }
           }
-          eachCallback();
-        });
+        }
+
+        // remove receipt items that are invalid
+        for (var i = 0; i < itemsToDelete.length; i++) {
+          var deleteKey = itemsToDelete[i];
+          if (jsonMessage[group][deleteKey] !== null) {
+            delete jsonMessage[group][deleteKey];
+            delete jsonMessage.templates[group][deleteKey];
+            delete jsonMessage.elementPaths[group][deleteKey];
+          }
+        }
+        return eachCallback();
       },
       function(err) {
         if (err) {
           console.log(err.message);
         }
-        seriesCallback();
+        return seriesCallback();
       });
     }
   ], function(err, result) {
     if (err) {
       console.log(err.message);
     }
-    callback(jsonMessage);
+    return callback(jsonMessage);
   });
 };
 
@@ -530,7 +482,7 @@ function initializeContentSearch($, callback) {
     callback(params);
   } else {
     console.log("element does not exist. no text retrieved");
-    callback();
+    return callback();
   }
 }
 
@@ -610,7 +562,6 @@ function inArray(element, array) {
   for (var i = 0; i < array.length; i++) {
     if (array[i] === element[0]) {
       index = i;
-      console.log("Found element inArray");
       break;
     }
   }

@@ -63,8 +63,9 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
       async.eachSeries(groupedKeys, function(group, eachCallback) {
         var groupAttributes = [];
         var groupedAttrs = Object.keys(global.attributes.groupedAttributes[group]);
+
         for (var i = 0; i < groupedAttrs.length; i++) {
-          if (groupedAttrs[i] !== "id") {
+          if (groupedAttrs[i] !== "id" && groupedAttrs[i] !== "row") {
             groupAttributes.push(groupedAttrs[i]);
           }
         }
@@ -79,27 +80,25 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
           for (var j = 0; j < groupAttributes.length; j++) {
             var attr = groupAttributes[j];
 
-            if (attr !== "row") {
-              // if item contains attribute and it is a real value, check validity
-              if (jsonMessage[group][itemKey].hasOwnProperty(attr.name) && jsonMessage[group][itemKey] !== "") {
-                var isValid = checkInvalidItem(jsonMessage[group][itemKey][attr.name]);
-                // if item is invalid, store key and itemKey for deleting
-                console.log("valid?: " + jsonMessage[group][itemKey][attr.name] + " " + isValid);
-                if (!isValid) {
-                  itemsToDelete.push(itemKey);
-                }
+            // if item contains attribute and it is a real value, check validity
+            if (jsonMessage[group][itemKey].hasOwnProperty(attr) && jsonMessage[group][itemKey] !== "") {
+              var isValid = checkInvalidItem(jsonMessage[group][itemKey][attr]);
+              // if item is invalid, store key and itemKey for deleting
+              console.log("valid?: " + jsonMessage[group][itemKey][attr] + " " + isValid);
+              if (!isValid) {
+                itemsToDelete.push(itemKey);
               }
-              // if item needs attribute
-              else {
-                var result = findDefaultValue($, attr.name, documentText, domain, textNodes);
-                if (result != null) {
-                  jsonMessage[group][itemKey][attr.name] = result.value;
-                }
-              }
-
-              // convert values to correct datatype
-              jsonMessage[group][itemKey][attr.name] = convertAttributeDataType(jsonMessage[group][itemKey][attr.name], attr.datatype);
             }
+            // if item needs attribute
+            else {
+              var result = findDefaultValue($, attr, documentText, domain, textNodes);
+              if (result != null) {
+                jsonMessage[group][itemKey][attr] = result.value;
+              }
+            }
+
+            // convert values to correct datatype
+            jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
           }
         }
 

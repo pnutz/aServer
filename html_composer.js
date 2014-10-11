@@ -121,7 +121,8 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
       var keys = Object.keys(tables);
       for (var index = 0; index < keys.length; index++) {
         var key = keys[index];
-        if (key === "length") {
+        // at one point, just length showed up in keys. options (&others) appeared later
+        if (key === "options" || key === "length") {
           console.log("Completed iteration of table elements");
           break;
         } else {
@@ -140,7 +141,8 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
           var rowKeys = Object.keys(rows);
           for (var rowIndex = 0; rowIndex < rowKeys.length; rowIndex++) {
             var rowKey = rowKeys[rowIndex];
-            if (rowKey === "length") {
+            // at one point, just length showed up in keys. options (&others) appeared later
+            if (rowKey === "options" || rowKey === "length") {
               console.log("Completed iteration of row elements");
               break;
             } else {

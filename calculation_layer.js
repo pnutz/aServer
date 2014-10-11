@@ -1,9 +1,15 @@
 var cheerio = require("cheerio");
 var async = require("async");
+var ccTLD = require("./cctld");
+var countries = require("iso-countries");
 
 exports.applyCalculations = function(jsonMessage, html, domain, callback) {
   console.log("----------------CALCULATION LAYER----------------------");
   var $ = cheerio.load(html);
+
+  // force calculation for currency
+  jsonMessage.currency = "";
+
   // hard copy jsonMessage
   var individualAttributes = JSON.parse(JSON.stringify(jsonMessage));
   delete individualAttributes["templates"];
@@ -244,6 +250,9 @@ function findDefaultValue($, attribute, text, domain, textNodes) {
   case "total":
     result = findDefaultTotal($, text, textNodes);
     break;
+  case "currency":
+    result = findDefaultCurrency($, text, domain, textNodes);
+    break;
   default:
     break;
   }
@@ -465,6 +474,45 @@ function findDefaultTotal($, text, textNodes) {
   // numbers, separated by spaces
   //text = text.replace(/[^0-9.$\-]/g, " ").replace(/\s+/g, " ").replace(/[$]\s+/g, "$").replace(/[-]\s+/g, "-").trim();
   return { value: "0.00", elementPath: null };
+}
+
+function findDefaultCurrency($, text, domain, textNodes) {
+  var country;
+  var currency = "";
+
+  // manually set DOMAIN for local file sites (they have no domain)
+  if (domain !== "DOMAIN") {
+    var extension = domain.substring(domain.lastIndexOf("."));
+
+    for (var i = 0; i < ccTLD.domainExtensions.length; i++) {
+      if (extension === ccTLD.domainExtensions[i][0]) {
+        country = ccTLD.domainExtensions[i][1];
+        break;
+      }
+    }
+  }
+
+  // find currency from country
+  if (country != null) {
+    // some countries are not in the iso-countries npm
+    switch(country) {
+      case "Bonaire, Sint Eustatius and Saba":
+        currency = "USD";
+        break;
+      case "Curaçao":
+        currency = "ANG";
+        break;
+      case "Sint Maarten":
+        currency = "ANG";
+        break;
+      default:
+        var countryData = countries.findCountryByName(country);
+        if (countryData != null) {
+          currency = countryData.currency;
+        }
+    }
+  }
+  return { value: currency, elementPath: null };
 }
 
 // initializes textNodes and retrieves document text

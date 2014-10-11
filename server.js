@@ -86,13 +86,13 @@ function start()
                                req.params.html,
                                req.params.url,
                                req.params.domain,
-                               function(json_message) {
-                                 console.log(json_message);
+                               function(jsonMessage) {
+                                 console.log(jsonMessage);
                                  // 2nd layer calculations
-                                 layer.applyCalculations(json_message, req.params.html, req.params.domain, function(altered_message) {
+                                 layer.applyCalculations(jsonMessage, req.params.html, req.params.domain, function(alteredMessage) {
                                    res.header("Content-Type", "text/plain");
-                                   console.log(altered_message);
-                                   res.send(200, JSON.stringify(altered_message));
+                                   console.log(alteredMessage);
+                                   res.send(200, JSON.stringify(alteredMessage));
                                    console.log("Request Completed");
                                  });
                                });

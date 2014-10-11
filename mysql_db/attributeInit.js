@@ -14,6 +14,10 @@ module.exports.attrData = [
   {
     attribute: "total",
     datatype: "decimal"
+  },
+  {
+    attribute: "currency",
+    datatype: "string"
   }
 ];
 

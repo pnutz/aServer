@@ -12,7 +12,8 @@
     "cheerio": "0.17.x",
     "html-entities": "1.1.x",
     "mysql": "2.4.x",
-    "restify": "2.8.x"
+    "restify": "2.8.x",
+    "iso-countries": "0.x.x"
   },
   "private": true
 }

@@ -250,6 +250,9 @@ function findDefaultValue($, attribute, text, domain, textNodes) {
   case "total":
     result = findDefaultTotal($, text, textNodes);
     break;
+  case "shipping":
+    result = findDefaultShipping($, text, textNodes);
+    break;
   case "currency":
     result = findDefaultCurrency($, text, domain, textNodes);
     break;
@@ -462,25 +465,125 @@ function findDefaultItemQuantity($, text, textNodes) {
   return { value: "1", elementPath: null };
 }
 
-// largest non-negative monetary value
+// monetary value immediately after keyword 'Total'
+// last instance or first instance in document
 function findDefaultTotal($, text, textNodes) {
-  // Rs. 584, Rs. 618.45, $354.34
-  //
+  var firstTotalIndex = text.indexOf("Total") + "Total".length;
+  var firstTotal;
+  var lastTotal;
 
-  // look for $ symbols, etc. we don't know if $ is the currency used, but if it appears, then it is
-  // ignore numbers that are too long. plain numbers don't work, transaction#, e-mail, date, number in item description, quantity
-  //
+  if (firstTotalIndex !== -1) {
+    // all numbers following, separated by spaces
+    var firstTotalNumbers = text.substring(firstTotalIndex, firstTotalIndex + 30).replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
 
-  // numbers, separated by spaces
-  //text = text.replace(/[^0-9.$\-]/g, " ").replace(/\s+/g, " ").replace(/[$]\s+/g, "$").replace(/[-]\s+/g, "-").trim();
-  return { value: "0.00", elementPath: null };
+    // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
+    var charIndex = 0;
+    while (charIndex < firstTotalNumbers.length) {
+      var startIndex = charIndex;
+      while (charIndex !== firstTotalNumbers.length && firstTotalNumbers.charAt(charIndex) !== " ") {
+        charIndex++;
+      }
+      var endIndex = charIndex;
+      firstTotal = firstTotalNumbers.substring(startIndex, endIndex);
+      if (firstTotal.length > 0 && !isNaN(parseFloat(firstTotal))) {
+        break;
+      } else {
+        firstTotal = null;
+      }
+      charIndex++;
+    }
+
+    text = text.substring(firstTotalIndex);
+    var lastTotalIndex = text.lastIndexOf("Total") + "Total".length;
+
+    if (lastTotalIndex !== -1) {
+      // all numbers following, separated by spaces
+      var lastTotalNumbers = text.substring(lastTotalIndex, lastTotalIndex + 30).replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
+
+      // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
+      charIndex = 0;
+      while (charIndex < lastTotalNumbers.length) {
+        var startIndex = charIndex;
+        while (charIndex !== lastTotalNumbers.length && lastTotalNumbers.charAt(charIndex) !== " ") {
+          charIndex++;
+        }
+        var endIndex = charIndex;
+        lastTotal = lastTotalNumbers.substring(startIndex, endIndex);
+        if (lastTotal.length > 0 && !isNaN(parseFloat(lastTotal))) {
+          break;
+        } else {
+          lastTotal = null;
+        }
+        charIndex++;
+      }
+    }
+  }
+
+  if (lastTotal != null) {
+    return { value: lastTotal, elementPath: null };
+  } else if (firstTotal != null) {
+    return { value: firstTotal, elementPath: null };
+  } else {
+    return { value: "0.00", elementPath: null };
+  }
+}
+
+// monetary value immediately after keyword 'Shipping'
+// ignores Free Shipping keyword and doesn't look past any Total keywords
+// check instances of the word from the end to the beginning for +'ve #s after
+function findDefaultShipping($, text, textNodes) {
+  text = text.replace("Free Shipping", "");
+
+  var shipping;
+  var shippingIndex = text.lastIndexOf("Shipping") + "Shipping".length;
+
+  // horrible workaround to ignore "Free U.S. Shipping" and similar cases
+  while (text.substring(shippingIndex - 20, shippingIndex).indexOf("Free") !== -1) {
+    shippingIndex = text.lastIndexOf("Shipping", shippingIndex - "Shipping".length - 1) + "Shipping".length;
+  }
+
+  while (shipping == null && shippingIndex - "Shipping".length !== -1) {
+    var shippingText = text.substring(shippingIndex, shippingIndex + 45);
+    if (shippingText.indexOf("Total") !== -1) {
+      shippingText = shippingText.substring(0, shippingText.indexOf("Total"));
+    }
+
+    // all numbers following, separated by spaces
+    var shippingNumbers = shippingText.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
+
+    // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
+    var charIndex = 0;
+    while (charIndex < shippingNumbers.length) {
+      var startIndex = charIndex;
+      while (charIndex !== shippingNumbers.length && shippingNumbers.charAt(charIndex) !== " ") {
+        charIndex++;
+      }
+      var endIndex = charIndex;
+      shipping = shippingNumbers.substring(startIndex, endIndex);
+      // if it is a valid number and positive, keep it!
+      if (shipping.length > 0 && !isNaN(parseFloat(shipping)) && parseFloat(shipping) >= 0) {
+        break;
+      } else {
+        shipping = null;
+      }
+      charIndex++;
+    }
+
+    shippingIndex = text.lastIndexOf("Shipping", shippingIndex - "Shipping".length - 1) + "Shipping".length;
+  }
+
+  if (shipping != null) {
+    return { value: shipping, elementPath: null };
+  } else {
+    return { value: "0.00", elementPath: null };
+  }
 }
 
 function findDefaultCurrency($, text, domain, textNodes) {
   var country;
   var currency = "";
 
-  // manually set DOMAIN for local file sites (they have no domain)
+  // ignore manually set DOMAIN for local file sites (they have no domain)
   if (domain !== "DOMAIN") {
     var extension = domain.substring(domain.lastIndexOf("."));
 
@@ -512,6 +615,8 @@ function findDefaultCurrency($, text, domain, textNodes) {
         }
     }
   }
+
+
   return { value: currency, elementPath: null };
 }
 

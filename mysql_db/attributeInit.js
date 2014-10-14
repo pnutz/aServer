@@ -16,6 +16,10 @@ module.exports.attrData = [
     datatype: "decimal"
   },
   {
+    attribute: "shipping",
+    datatype: "decimal"
+  },
+  {
     attribute: "currency",
     datatype: "string"
   }

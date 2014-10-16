@@ -79,32 +79,54 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
 
         // loop through receipt items for group in jsonMessage
         var itemKeys = Object.keys(jsonMessage[group]);
-        for (var i = 0; i < itemKeys.length; i++) {
-          var itemKey = itemKeys[i];
+        if (itemKeys.length > 0) {
+          for (var i = 0; i < itemKeys.length; i++) {
+            var itemKey = itemKeys[i];
 
-          // loop through each attribute in group for item
-          for (var j = 0; j < groupAttributes.length; j++) {
-            var attr = groupAttributes[j];
+            // loop through each attribute in group for item
+            for (var j = 0; j < groupAttributes.length; j++) {
+              var attr = groupAttributes[j];
 
-            // if item contains attribute and it is a real value, check validity
-            if (jsonMessage[group][itemKey].hasOwnProperty(attr) && jsonMessage[group][itemKey] !== "") {
-              var isValid = checkInvalidItem(jsonMessage[group][itemKey][attr]);
-              // if item is invalid, store key and itemKey for deleting
-              console.log("valid?: " + jsonMessage[group][itemKey][attr] + " " + isValid);
-              if (!isValid) {
-                itemsToDelete.push(itemKey);
+              // if item contains attribute and it is a real value, check validity
+              if (jsonMessage[group][itemKey].hasOwnProperty(attr) && jsonMessage[group][itemKey] !== "") {
+                if (attr.datatype === "string") {
+                  var isValid = checkInvalidItem(jsonMessage[group][itemKey][attr]);
+                  // if item is invalid, store key and itemKey for deleting
+                  console.log("valid?: " + jsonMessage[group][itemKey][attr] + " " + isValid);
+                  if (!isValid) {
+                    itemsToDelete.push(itemKey);
+                  }
+                }
               }
-            }
-            // if item needs attribute
-            else {
-              var result = findDefaultValue($, attr, documentText, domain, textNodes);
-              if (result != null) {
-                jsonMessage[group][itemKey][attr] = result.value;
+              // if item needs attribute
+              else {
+                var result = findDefaultValue($, attr, documentText, domain, textNodes);
+                if (result != null && result.value !== "") {
+                  jsonMessage[group][itemKey][attr] = result.value;
+                }
               }
-            }
 
-            // convert values to correct datatype
-            jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+              // convert values to correct datatype
+              jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+            }
+          }
+        }
+        // actually look for default values for taxes
+        else if (group === "taxes") {
+          var result = findDefaultValue($, group, documentText, domain, textNodes);
+          if (result != null && result.value !== "") {
+            jsonMessage[group] = result.value;
+
+            itemKeys = Object.keys(jsonMessage[group]);
+            var itemKey = itemKeys[i];
+
+            // loop through each attribute in group for item
+            for (var j = 0; j < groupAttributes.length; j++) {
+              var attr = groupAttributes[j];
+
+              // convert values to correct datatype
+              jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+            }
           }
         }
 
@@ -227,8 +249,7 @@ function convertDecimal(result) {
 function findDefaultValue($, attribute, text, domain, textNodes) {
   var result = null;
 
-  switch(attribute)
-  {
+  switch(attribute) {
   case "date":
     result = findDefaultDate($, text, textNodes);
     break;
@@ -255,6 +276,10 @@ function findDefaultValue($, attribute, text, domain, textNodes) {
     break;
   case "currency":
     result = findDefaultCurrency($, text, domain, textNodes);
+    break;
+  // grouped attribute, search for all attributes
+  case "taxes":
+    result = findDefaultTaxes($, text, textNodes);
     break;
   default:
     break;
@@ -616,8 +641,75 @@ function findDefaultCurrency($, text, domain, textNodes) {
     }
   }
 
-
   return { value: currency, elementPath: null };
+}
+
+function findDefaultTaxes($, text, textNodes) {
+  // value would be { 0: { tax: "", price: "" } }
+
+  // how to find in table in 1st place - find keyword tax in a table with a # value after - last table found
+  // shipping in same table? - if getting rid of shipping
+  // keyword total should be in same table?
+  // find keywords in text first, (and infer other labels/values from surrounding text)
+  // values always to the right of text
+
+  // case where no tax? shipping? fee? credit?...
+  // no such case? find scope
+  var lowerText = text.toLowerCase();
+  var lastIndex = lowerText.lastIndexOf("tax");
+
+  if (lastIndex === -1) {
+    lastIndex = lowerText.lastIndexOf("shipping");
+  }
+
+  if (lastIndex === -1) {
+    lastIndex = lowerText.lastIndexOf("fee");
+  }
+
+  var reverseIndex = text.length - lastIndex;
+
+  var count = 0;
+  var element;
+  // count textNodes backwards until reverseIndex char count is hit
+  for (var i = textNodes.length - 1; i >= 0; i--) {
+    count += textNodes[i].data.trim().length;
+    if (count >= reverseIndex) {
+      element = $(textNodes[i].parent);
+    }
+
+    var valid = false;
+    var valueBuffer = 30;
+    while (valueBuffer > 0 && !valid) {
+      var value = textNodes[i + 1].data.trim();
+      valueBuffer -= value.length;
+      var valueNumbers = value.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
+
+    }
+
+    // account for space between text nodes
+    count += 1;
+  }
+
+  // repeat entire thing with next lastIndexOf if no $ values closeby
+
+  // then find text in elements - how to do this?
+  // find textNode that contains text to the left of monetary value
+
+  //Taxes appear as a separate table.  Not included in subtotal (calculated).
+  //Assumption: other fees will be same table/template as taxes. (exclude "total"/"Total" keyword for these)
+  //Two attributes: tax name & amount.
+  //Include gift certificates? discounts? credits?
+  //Don't need to exclude free shipping. (shipping would be included)
+
+  //"Payment made"? how to detect this type
+
+  //Duplicate payment informations? - take last instance on page
+  //Check by duplicate name & remove.
+
+  //Can exclude 0.00 values? (no tax, no shipping, no discount, etc.)
+  //Cross-reference values with receipt items to ensure no duplicates.
+
+  return { value: "", elementPath: null };
 }
 
 // initializes textNodes and retrieves document text

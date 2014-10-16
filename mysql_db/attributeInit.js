@@ -46,5 +46,22 @@ module.exports.groupData = [
         datatype: "integer"
       }
     ]
+  },
+  {
+    groupname: "taxes",
+    attributes: [
+      {
+        attribute: "row",
+        datatype: "null"
+      },
+      {
+        attribute: "tax",
+        datatype: "string"
+      },
+      {
+        attribute: "price",
+        datatype: "decimal"
+      }
+    ]
   }
 ];

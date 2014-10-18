@@ -118,14 +118,18 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
             jsonMessage[group] = result.value;
 
             itemKeys = Object.keys(jsonMessage[group]);
-            var itemKey = itemKeys[i];
+            if (itemKeys.length > 0) {
+              for (var i = 0; i < itemKeys.length; i++) {
+                var itemKey = itemKeys[i];
 
-            // loop through each attribute in group for item
-            for (var j = 0; j < groupAttributes.length; j++) {
-              var attr = groupAttributes[j];
+                // loop through each attribute in group for item
+                for (var j = 0; j < groupAttributes.length; j++) {
+                  var attr = groupAttributes[j];
 
-              // convert values to correct datatype
-              jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+                  // convert values to correct datatype
+                  jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+                }
+              }
             }
           }
         }
@@ -502,20 +506,21 @@ function findDefaultTotal($, text, textNodes) {
     var firstTotalNumbers = text.substring(firstTotalIndex, firstTotalIndex + 30).replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
 
     // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
-    var charIndex = 0;
-    while (charIndex < firstTotalNumbers.length) {
-      var startIndex = charIndex;
-      while (charIndex !== firstTotalNumbers.length && firstTotalNumbers.charAt(charIndex) !== " ") {
-        charIndex++;
+    var startIndex;
+    var endIndex = -1;
+    while (endIndex !== firstTotalNumbers.length) {
+      startIndex = endIndex + 1;
+      endIndex = firstTotalNumbers.indexOf(" ", startIndex);
+      if (endIndex === -1) {
+        endIndex = firstTotalNumbers.length;
       }
-      var endIndex = charIndex;
+
       firstTotal = firstTotalNumbers.substring(startIndex, endIndex);
       if (firstTotal.length > 0 && !isNaN(parseFloat(firstTotal))) {
         break;
       } else {
         firstTotal = null;
       }
-      charIndex++;
     }
 
     text = text.substring(firstTotalIndex);
@@ -526,20 +531,21 @@ function findDefaultTotal($, text, textNodes) {
       var lastTotalNumbers = text.substring(lastTotalIndex, lastTotalIndex + 30).replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
 
       // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
-      charIndex = 0;
-      while (charIndex < lastTotalNumbers.length) {
-        var startIndex = charIndex;
-        while (charIndex !== lastTotalNumbers.length && lastTotalNumbers.charAt(charIndex) !== " ") {
-          charIndex++;
+      var startIndex;
+      var endIndex = -1;
+      while (endIndex !== lastTotalNumbers.length) {
+        startIndex = endIndex + 1;
+        endIndex = lastTotalNumbers.indexOf(" ", startIndex);
+        if (endIndex === -1) {
+          endIndex = lastTotalNumbers.length;
         }
-        var endIndex = charIndex;
+
         lastTotal = lastTotalNumbers.substring(startIndex, endIndex);
         if (lastTotal.length > 0 && !isNaN(parseFloat(lastTotal))) {
           break;
         } else {
           lastTotal = null;
         }
-        charIndex++;
       }
     }
   }
@@ -577,13 +583,15 @@ function findDefaultShipping($, text, textNodes) {
     var shippingNumbers = shippingText.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
 
     // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
-    var charIndex = 0;
-    while (charIndex < shippingNumbers.length) {
-      var startIndex = charIndex;
-      while (charIndex !== shippingNumbers.length && shippingNumbers.charAt(charIndex) !== " ") {
-        charIndex++;
+    var startIndex;
+    var endIndex = -1;
+    while (endIndex !== shippingNumbers.length) {
+      startIndex = endIndex + 1;
+      endIndex = shippingNumbers.indexOf(" ", startIndex);
+      if (endIndex === -1) {
+        endIndex = shippingNumbers.length;
       }
-      var endIndex = charIndex;
+
       shipping = shippingNumbers.substring(startIndex, endIndex);
       // if it is a valid number and positive, keep it!
       if (shipping.length > 0 && !isNaN(parseFloat(shipping)) && parseFloat(shipping) >= 0) {
@@ -591,7 +599,6 @@ function findDefaultShipping($, text, textNodes) {
       } else {
         shipping = null;
       }
-      charIndex++;
     }
 
     shippingIndex = text.lastIndexOf("Shipping", shippingIndex - "Shipping".length - 1) + "Shipping".length;
@@ -644,56 +651,207 @@ function findDefaultCurrency($, text, domain, textNodes) {
   return { value: currency, elementPath: null };
 }
 
+// value would be { 0: { tax: "", price: "" } }
 function findDefaultTaxes($, text, textNodes) {
-  // value would be { 0: { tax: "", price: "" } }
+  var result = null;
 
-  // how to find in table in 1st place - find keyword tax in a table with a # value after - last table found
-  // shipping in same table? - if getting rid of shipping
-  // keyword total should be in same table?
-  // find keywords in text first, (and infer other labels/values from surrounding text)
-  // values always to the right of text
-
-  // case where no tax? shipping? fee? credit?...
-  // no such case? find scope
   var lowerText = text.toLowerCase();
-  var lastIndex = lowerText.lastIndexOf("tax");
+  var keyword = "tax";
+  var lastIndex = lowerText.lastIndexOf(keyword);
 
   if (lastIndex === -1) {
-    lastIndex = lowerText.lastIndexOf("shipping");
+    keyword = "shipping";
+    lastIndex = lowerText.lastIndexOf(keyword);
   }
 
   if (lastIndex === -1) {
-    lastIndex = lowerText.lastIndexOf("fee");
+    keyword = "fee";
+    lastIndex = lowerText.lastIndexOf(keyword);
   }
 
-  var reverseIndex = text.length - lastIndex;
+  var index = 0;
+  var taxElement;
+  var taxElementPath;
+  var taxRowElement;
+  var taxTextNodeOrder;
+  var valueElement;
+  var valueElementPath;
+  var valueRowElement;
+  var valueTextNodeOrder;
+  var tax;
 
+  // tracking which textNode we are at and how many characters we have passed
+  var textNodeIndex = textNodes.length - 1;
   var count = 0;
-  var element;
-  // count textNodes backwards until reverseIndex char count is hit
-  for (var i = textNodes.length - 1; i >= 0; i--) {
-    count += textNodes[i].data.trim().length;
-    if (count >= reverseIndex) {
-      element = $(textNodes[i].parent);
+
+  while (lastIndex !== -1) {
+    var reverseIndex = text.length - lastIndex;
+
+    // count textNodes backwards until reverseIndex char count is hit
+    for (; textNodeIndex >= 0; textNodeIndex--) {
+      count += textNodes[textNodeIndex].data.trim().length + 1;
+      if (count >= reverseIndex) {
+        if (taxElementPath == null) {
+          taxElement = $(textNodes[textNodeIndex].parent);
+          taxElementPath = findClosestRowElement(taxElement);
+
+          var childNodes = taxElement[0].children;
+          for (var i = 0; i < childNodes.length; i++) {
+            if (childNodes[i] === textNodes[textNodeIndex]) {
+              taxTextNodeOrder = i;
+              break;
+            }
+          }
+
+          // taxElement is not in a row element, look for next instance of keyword
+          if (taxElementPath == null) {
+            break;
+          }
+        }
+
+        tax = textNodes[textNodeIndex].data.trim();
+        // trim numbers from tax
+        tax = tax.replace(/[0-9.\-]/g, " ").replace(/\s+/g, " ").trim();
+
+        var valueBuffer = 30;
+        // keep trying textNodes until a valid value is found or until 30 characters have been searched
+        while (valueBuffer > 0 && valueElement == null) {
+          var value = textNodes[textNodeIndex].data;
+          if (value.indexOf(keyword) !== -1) {
+            value = value.substring(value.indexOf(keyword) + keyword.length);
+          }
+          valueBuffer -= value.length;
+          var valueNumbers = value.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
+
+          var startIndex = 0;
+          var endIndex = valueNumbers.indexOf(" ");
+
+          // iterate through valueNumbers until the end or until value is valid
+          while (endIndex !== -1) {
+            value = valueNumbers.substring(startIndex, endIndex);
+
+            if (value.length > 0 && !isNaN(parseFloat(value)) && parseFloat(value) >= 0) {
+              valueElement = $(textNodes[textNodeIndex].parent);
+
+              var childNodes = valueElement[0].children;
+              for (var i = 0; i < childNodes.length; i++) {
+                if (childNodes[i] === textNodes[textNodeIndex]) {
+                  valueTextNodeOrder = i;
+                  break;
+                }
+              }
+              break;
+            } else {
+              startIndex = endIndex + 1;
+              endIndex = valueNumbers.indexOf(" ", startIndex);
+            }
+          }
+
+          // final number in valueNumbers
+          if (valueElement == null) {
+            value = valueNumbers.substring(startIndex);
+            if (value.length > 0 && !isNaN(parseFloat(value)) && parseFloat(value) >= 0) {
+              valueElement = $(textNodes[textNodeIndex].parent);
+
+              var childNodes = valueElement[0].children;
+              for (var i = 0; i < childNodes.length; i++) {
+                if (childNodes[i] === textNodes[textNodeIndex]) {
+                  valueTextNodeOrder = i;
+                  break;
+                }
+              }
+            }
+          }
+
+          count -= textNodes[textNodeIndex].data.trim().length + 1;
+          textNodeIndex++;
+        }
+
+        // if valueElement doesn't exist, don't use this textNode
+        if (valueElement != null) {
+          taxRowElement = taxElement;
+          for (var i = 0; i < taxElementPath.length; i++) {
+            taxRowElement = taxRowElement.parent();
+          }
+
+          if (valueElement[0] !== taxElement[0]) {
+            valueElementPath = findClosestRowElement(valueElement);
+
+            // try another keyword match
+            if (valueElementPath == null) {
+              valueElement = null;
+              break;
+            } else {
+              valueRowElement = valueElement;
+              for (var i = 0; i < valueElementPath.length; i++) {
+                valueRowElement = valueRowElement.parent();
+              }
+
+              // if different row elements, try another keyword match
+              if (valueRowElement[0] !== taxRowElement[0]) {
+                valueElement = null;
+                break;
+              }
+            }
+          }
+
+          // validation has passed, so results are added to taxes for sure
+          if (result == null) {
+            result = { value: {}, elementPath: null };
+          }
+          result.value[index] = { tax: tax, price: value };
+          index++;
+          break;
+        }
+      }
     }
 
-    var valid = false;
-    var valueBuffer = 30;
-    while (valueBuffer > 0 && !valid) {
-      var value = textNodes[i + 1].data.trim();
-      valueBuffer -= value.length;
-      var valueNumbers = value.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
+    // PROBLEM: JUST CANADIAN AMAZON
+    // THEY ARE JUST BR DELIMITED STRINGS, NOT A TABLE
+    // DON'T TEST ON THIS ONE FOR NOW?
 
+    // search for other taxes from sibling rows to found result
+    if (valueElement != null) {
+      var prevRows = taxRowElement.prevAll();
+      for (var i = 0; i < prevRows.length; i++) {
+        var row = $(prevRows[i]);
+        // traverse elementPath for row, see if matches
+        var newElement = traverseElementPath(row, taxElementPath);
+        if (newElement == null) {
+          continue;
+        }
+
+        var textNode = newElement[0].children[taxTextNodeOrder];
+        tax = textNode.data.trim();
+        // trim numbers from tax
+        tax = tax.replace(/[0-9.\-]/g, " ").replace(/\s+/g, " ").trim();
+
+        if (valueElementPath != null) {
+          newElement = traverseElementPath(row, valueElementPath);
+          if (newElement == null) {
+            continue;
+          }
+          textNode = newElement[0].children[valueTextNodeOrder];
+        }
+        var valueNumbers = textNode.data.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
+        // transfer the number calculations over
+        // add to results
+        debugger;
+      }
+
+      var nextRows = taxRowElement.nextAll();
+      for (var i = 0; i < nextRows.length; i++) {
+        var row = $(nextRows[i]);
+      }
+
+      // stop searching for earlier instances of keyword
+      break;
+    } else {
+      // setup for another iteration of search
+      taxElementPath = null;
+      lastIndex = lowerText.lastIndexOf(keyword, lastIndex);
     }
-
-    // account for space between text nodes
-    count += 1;
   }
-
-  // repeat entire thing with next lastIndexOf if no $ values closeby
-
-  // then find text in elements - how to do this?
-  // find textNode that contains text to the left of monetary value
 
   //Taxes appear as a separate table.  Not included in subtotal (calculated).
   //Assumption: other fees will be same table/template as taxes. (exclude "total"/"Total" keyword for these)
@@ -709,7 +867,59 @@ function findDefaultTaxes($, text, textNodes) {
   //Can exclude 0.00 values? (no tax, no shipping, no discount, etc.)
   //Cross-reference values with receipt items to ensure no duplicates.
 
-  return { value: "", elementPath: null };
+  debugger;
+  if (result != null) {
+    return result;
+  } else {
+    return { value: "", elementPath: null };
+  }
+}
+
+// returns elementPath from root element till closestRowElement
+// returns null if there is no row element parent
+function findClosestRowElement(element) {
+  // initial elementPath, implies that root element is a row element
+  var elementPath = [];
+  var matchFound = matchRowTag(element[0].name);
+
+  while (matchFound == null) {
+    if (element.parent().length === 0) {
+      return null;
+    }
+    var order = element.prevAll().length;
+    // add order to the beginning of the elementPath
+    elementPath.unshift(order);
+
+    element = element.parent();
+    matchFound = matchRowTag(element[0].name);
+  }
+  return elementPath;
+}
+
+function matchRowTag(tag) {
+  var rowTags = ["tr", "li", "dl", "dd"];
+  for (var i = 0; i < rowTags.length; i++) {
+    if (tag === rowTags[i]) {
+      return i;
+    }
+  }
+  return null;
+}
+
+function traverseElementPath(element, elementPath) {
+  for (var i = 0; i < elementPath.length; i++) {
+    var order = elementPath[i];
+    element = element.children();
+    if (element.length > 0) {
+      element = element.eq(order);
+      if (element.length === 0) {
+        return null;
+      }
+    } else {
+      return null;
+    }
+  }
+  return element;
 }
 
 // initializes textNodes and retrieves document text

@@ -13,7 +13,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
   var domainId;
   var $;
   // default create these attributes
-  var jsonMessage = { date: "", vendor: "", transaction: "", shipping: "", total: "", items: {}, taxes: {}, templates: {}, elementPaths: {} };
+  var jsonMessage = { date: "", vendor: "", transaction: "", /*shipping: "",*/ total: "", items: {}, taxes: {}, templates: {}, elementPaths: {} };
 
   async.series([
     // load domain

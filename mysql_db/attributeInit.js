@@ -15,10 +15,10 @@ module.exports.attrData = [
     attribute: "total",
     datatype: "decimal"
   },
-  {
+  /*{
     attribute: "shipping",
     datatype: "decimal"
-  },
+  },*/
   {
     attribute: "currency",
     datatype: "string"

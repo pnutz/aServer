@@ -66,11 +66,14 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
             if (templates != null) {
               async.eachSeries(templates, function(template, eachCallback) {
                 console.log("----------------PROCESS TEMPLATE " + template.id + "----------------------");
-                processTemplate(template, $, function(templateResult, elementPath) {
+                processTemplate(template, $, function(templateResult, elementPath, start, end) {
                   if (templateResult != null) {
                     // return found text to add to message
                     jsonMessage[attribute] = templateResult;
-                    jsonMessage.templates[attribute] = template.id;
+                    jsonMessage.templates[attribute] = {};
+                    jsonMessage.templates[attribute].id = template.id;
+                    jsonMessage.templates[attribute].start = start;
+                    jsonMessage.templates[attribute].end = end;
                     jsonMessage.elementPaths[attribute] = elementPath;
                     return eachCallback(new Error(true));
                   } else {
@@ -237,11 +240,11 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                           var replaceAttr = compareAttributeResults(formattedItems[rowKey][attr], groupedData[group][key][rowKey][attr]);
                           if (replaceAttr) {
                             // lower probability for old template
-                            TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group][rowKey][attr], function(templateDomain) {
+                            TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group][rowKey][attr].id, function(templateDomain) {
                               // replace attribute
                               formattedItems[rowKey][attr] = groupedData[group][key][rowKey][attr];
                               jsonMessage.templates[group][rowKey][attr] = groupedData[group][key].templates[rowKey][attr];
-                              jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths;
+                              jsonMessage.elementPaths[group][rowKey][attr] = groupedData[group][key].elementPaths[rowKey][attr];
 
                               if (templateDomain != null) {
                                 templateDomain.total_count++;
@@ -253,7 +256,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                             });
                           } else {
                             // lower probability for new template
-                            TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group][key].templates[rowKey][attr], function(templateDomain) {
+                            TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group][key].templates[rowKey][attr].id, function(templateDomain) {
                               if (templateDomain != null) {
                                 templateDomain.total_count++;
                                 templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
@@ -269,7 +272,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                           if (groupedData[group][key][rowKey].hasOwnProperty(attr)) {
                             formattedItems[rowKey][attr] = groupedData[group][key][rowKey][attr];
                             jsonMessage.templates[group][rowKey][attr] = groupedData[group][key].templates[rowKey][attr];
-                            jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths;
+                            jsonMessage.elementPaths[group][rowKey][attr] = groupedData[group][key].elementPaths[rowKey][attr];
                           }
                           return eachCallback3();
                         }
@@ -284,7 +287,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                     else {
                       formattedItems[rowKey] = groupedData[group][key][rowKey];
                       jsonMessage.templates[group][rowKey] = groupedData[group][key].templates[rowKey];
-                      jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths;
+                      jsonMessage.elementPaths[group][rowKey] = groupedData[group][key].elementPaths[rowKey];
                       return eachCallback2();
                     }
                   }
@@ -349,7 +352,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                         var attr = groupedAttributes[attributeKey];
                         // attribute exists for row
                         if (formattedItems[matchIndex].hasOwnProperty(attr)) {
-                          TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group][matchIndex][attr], function(templateDomain) {
+                          TemplateDomain.getTemplateDomainByIds(domainId, jsonMessage.templates[group][matchIndex][attr].id, function(templateDomain) {
                             if (templateDomain != null) {
                               templateDomain.total_count++;
                               templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
@@ -368,7 +371,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
 
                         formattedItems[matchIndex] = groupedData[group][key][rowKey];
                         jsonMessage.templates[group][matchIndex] = groupedData[group][key].templates[rowKey];
-                        jsonMessage.elementPaths[group][matchIndex] = groupedData[group][key].elementPaths;
+                        jsonMessage.elementPaths[group][matchIndex] = groupedData[group][key].elementPaths[rowKey];
                         return eachCallback2();
                       });
                     }
@@ -379,7 +382,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                         var attr = groupedAttributes[attributeKey];
                         // attribute exists for row
                         if (groupedData[group][key][rowKey].hasOwnProperty(attr)) {
-                          TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group][key].templates[rowKey][attr], function(templateDomain) {
+                          TemplateDomain.getTemplateDomainByIds(domainId, groupedData[group][key].templates[rowKey][attr].id, function(templateDomain) {
                             if (templateDomain != null) {
                               templateDomain.total_count++;
                               templateDomain.probability_success = templateDomain.correct_count / templateDomain.total_count;
@@ -402,7 +405,7 @@ exports.readTemplate = function(userId, html, url, domain, jsonCallback) {
                     else {
                       formattedItems[nonRowIndex] = groupedData[group][key][rowKey];
                       jsonMessage.templates[group][nonRowIndex] = groupedData[group][key].templates[rowKey];
-                      jsonMessage.elementPaths[group][nonRowIndex] = groupedData[group][key].elementPaths;
+                      jsonMessage.elementPaths[group][nonRowIndex] = groupedData[group][key].elementPaths[rowKey];
                       nonRowIndex++;
                       return eachCallback2();
                     }
@@ -494,9 +497,9 @@ function processTemplate(template, $, callback) {
       console.log(err.message);
       return callback();
     } else {
-      findTextSelection(template.id, element, function(result) {
+      findTextSelection(template.id, element, function(result, start, end) {
         if (result !== "") {
-          return callback(result, elementPath, elementArray);
+          return callback(result, elementPath, start, end, elementArray);
         } else {
           return callback();
         }
@@ -512,9 +515,9 @@ function processGroupedTemplate(template, $, elementArray, callback) {
       console.log(err.message);
       return callback();
     } else {
-      findTextSelection(template.id, element, function(result) {
+      findTextSelection(template.id, element, function(result, start, end) {
         if (result !== "") {
-          return callback(result);
+          return callback(result, start, end, elementPath);
         } else {
           return callback();
         }
@@ -531,6 +534,8 @@ function findTextSelection(templateId, element, funcCallback) {
   var leftIndex;
   var textResult = element.text().trim().replace(/\n/g, "");
   var negative = false;
+  var startIndex;
+  var endIndex;
 
   console.log("----------------CALCULATE TEXT----------------------");
   async.series([
@@ -570,9 +575,10 @@ function findTextSelection(templateId, element, funcCallback) {
         leftIndex = textResult.indexOf(leftText.text);
 
         // keep trimming off leftText to match until it is 3 characters long
-        while (leftIndex === -1 && leftText.text.length > 3) {
-          leftText.text = leftText.text.substring(1);
-          leftIndex = textResult.indexOf(leftText.text);
+        var tempLeftText = leftText.text;
+        while (leftIndex === -1 && tempLeftText.length > 3) {
+          tempLeftText = tempLeftText.substring(1);
+          leftIndex = textResult.indexOf(tempLeftText);
         }
 
         if (leftIndex !== -1) {
@@ -597,7 +603,10 @@ function findTextSelection(templateId, element, funcCallback) {
 
       // cut off left side of textResult
       if (leftIndex != null && leftIndex !== -1) {
-        textResult = textResult.substring(leftIndex + leftText.text.length);
+        startIndex = leftIndex + leftText.text.length;
+        textResult = textResult.substring(startIndex);
+      } else {
+        startIndex = 0;
       }
 
       if (rightText != null) {
@@ -611,14 +620,30 @@ function findTextSelection(templateId, element, funcCallback) {
 
         // cut off right side of textResult
         if (rightIndex !== -1) {
+          endIndex = rightIndex + startIndex;
           textResult = textResult.substring(0, rightIndex);
+        } else {
+          endIndex = textResult.length + startIndex;
         }
+      } else {
+        endIndex = textResult.length + startIndex;
       }
-      textResult = textResult.trim();
+
+      var trimmedTextResult = textResult.trim();
+      // # characters removed from start/end due to trim
+      var trimStart = textResult.indexOf(trimmedTextResult);
+      var trimEnd = textResult.length - trimStart - trimmedTextResult.length;
+
+      startIndex += trimStart;
+      endIndex -= trimEnd;
+      textResult = trimmedTextResult;
 
       // check if result is a number before applying negative
       if (!isNaN(parseInt(textResult, 10)) && negative) {
         textResult = "-" + textResult;
+        while (leftText.text.charAt(startIndex) !== "-" && startIndex !== 0) {
+          startIndex--;
+        }
       }
 
       return callback();
@@ -628,7 +653,7 @@ function findTextSelection(templateId, element, funcCallback) {
       console.log(err.message);
       return funcCallback();
     } else {
-      return funcCallback(textResult);
+      return funcCallback(textResult, startIndex, endIndex);
     }
   });
 }
@@ -720,16 +745,20 @@ function processGroupedTemplates(templates, $, domainId, groupedAttributes, call
     function(seriesCallback) {
       async.eachSeries(templates, function(template, eachCallback) {
         if (template.attribute_id !== rowAttributeId) {
-          processTemplate(template, $, function(templateResult, elementPath, elementArray) {
+          processTemplate(template, $, function(templateResult, elementPath, start, end, elementArray) {
             // match found, store template and results
             if (templateResult != null) {
               if (jsonResults[tableRowId] == null) {
                 jsonResults[tableRowId] = {};
                 jsonTemplates[tableRowId] = {};
+                jsonElementPaths[tableRowId] = {};
               }
               jsonResults[tableRowId][groupedAttributes[template.attribute_id]] = templateResult;
-              jsonTemplates[tableRowId][groupedAttributes[template.attribute_id]] = template.id;
-              jsonElementPaths[groupedAttributes[template.attribute_id]] = elementPath;
+              jsonTemplates[tableRowId][groupedAttributes[template.attribute_id]] = {};
+              jsonTemplates[tableRowId][groupedAttributes[template.attribute_id]].id = template.id;
+              jsonTemplates[tableRowId][groupedAttributes[template.attribute_id]].start = start;
+              jsonTemplates[tableRowId][groupedAttributes[template.attribute_id]].end = end;
+              jsonElementPaths[tableRowId][groupedAttributes[template.attribute_id]] = elementPath;
               elementArrays[groupedAttributes[template.attribute_id]] = elementArray;
               return eachCallback();
             }
@@ -776,15 +805,20 @@ function processGroupedTemplates(templates, $, domainId, groupedAttributes, call
 
             var jsonResult = {};
             var jsonTemplate = {};
+            var jsonElementPath = {};
             async.eachSeries(templates, function(template, eachCallback2) {
               if (template.attribute_id !== rowAttributeId) {
                 var elementArray = elementArrays[groupedAttributes[template.attribute_id]];
                 elementArray[jsonElementPaths.row.index].order = rowIndex;
                 // process using elementPath
-                processGroupedTemplate(template, $, elementArray, function(templateResult) {
+                processGroupedTemplate(template, $, elementArray, function(templateResult, start, end, elementPath) {
                   if (templateResult != null) {
                     jsonResult[groupedAttributes[template.attribute_id]] = templateResult;
-                    jsonTemplate[groupedAttributes[template.attribute_id]] = template.id;
+                    jsonTemplate[groupedAttributes[template.attribute_id]] = {};
+                    jsonTemplate[groupedAttributes[template.attribute_id]].id = template.id;
+                    jsonTemplate[groupedAttributes[template.attribute_id]].start = start;
+                    jsonTemplate[groupedAttributes[template.attribute_id]].end = end;
+                    jsonElementPath[groupedAttributes[template.attribute_id]] = elementPath;
                     return eachCallback2();
                   }
                   // no match is found, stop calculating with template
@@ -812,6 +846,7 @@ function processGroupedTemplates(templates, $, domainId, groupedAttributes, call
                 // if row completely matches with templates, add it to jsonResults
                 jsonResults[tableRowId] = jsonResult;
                 jsonTemplates[tableRowId] = jsonTemplate;
+                jsonElementPaths[tableRowId] = jsonElementPath;
               }
 
               rowIndex++;

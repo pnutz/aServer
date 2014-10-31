@@ -45,11 +45,13 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
         // find default value if no result was found
         if (jsonMessage[key] === "") {
           var result = findDefaultValue($, key, documentText, domain, textNodes);
+
           if (result != null && result.value !== "") {
             jsonMessage[key] = result.value;
 
             if (result.elementPath != null) {
               jsonMessage.elementPaths[key] = result.elementPath;
+              jsonMessage.templates[key] = result.template;
             }
           }
 
@@ -58,7 +60,13 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
           jsonMessage[key] = result;
           if (result === "") {
             delete jsonMessage.elementPaths[key];
+            delete jsonMessage.templates[key];
           }
+        }
+
+        // startNodeIndex doesn't exist but value does, calculate it
+        if (jsonMessage.templates.hasOwnProperty(key) && jsonMessage.templates[key].hasOwnProperty("start") && !jsonMessage.templates[key].hasOwnProperty("node")) {
+          jsonMessage.templates[key].node = findStartNodeIndex($, textNodes, jsonMessage.elementPaths[key], jsonMessage.templates[key].start, jsonMessage.templates[key].end);
         }
       }
       return seriesCallback();
@@ -103,11 +111,23 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
                 var result = findDefaultValue($, attr, documentText, domain, textNodes);
                 if (result != null && result.value !== "") {
                   jsonMessage[group][itemKey][attr] = result.value;
+
+                  if (result.elementPath != null) {
+                    jsonMessage.elementPaths[group][itemKey][attr] = result.elementPath;
+                    jsonMessage.templates[group][itemKey][attr] = result.template;
+                  }
                 }
               }
 
               // convert values to correct datatype
               jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+
+              // startNodeIndex doesn't exist but value does, calculate it
+              if (jsonMessage.templates.hasOwnProperty(group) && jsonMessage.templates[group].hasOwnProperty(itemKey) && jsonMessage.templates[group][itemKey].hasOwnProperty(attr) &&
+                  jsonMessage.templates[group][itemKey][attr].hasOwnProperty("start") && !jsonMessage.templates[group][itemKey][attr].hasOwnProperty("node")) {
+                jsonMessage.templates[group][itemKey][attr].node = findStartNodeIndex($, textNodes, jsonMessage.elementPaths[group][itemKey][attr],
+                                                                                      jsonMessage.templates[group][itemKey][attr].start, jsonMessage.templates[group][itemKey][attr].end);
+              }
             }
           }
         }
@@ -116,6 +136,11 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
           var result = findDefaultValue($, group, documentText, domain, textNodes);
           if (result != null && result.value !== "") {
             jsonMessage[group] = result.value;
+
+            if (result.elementPath != null) {
+              jsonMessage.elementPaths[group] = result.elementPath;
+              jsonMessage.templates[group] = result.template;
+            }
 
             itemKeys = Object.keys(jsonMessage[group]);
             if (itemKeys.length > 0) {
@@ -128,6 +153,13 @@ exports.applyCalculations = function(jsonMessage, html, domain, callback) {
 
                   // convert values to correct datatype
                   jsonMessage[group][itemKey][attr] = convertAttributeDataType(jsonMessage[group][itemKey][attr], attr.datatype);
+
+                  // startNodeIndex doesn't exist but value does, calculate it
+                  if (jsonMessage.templates.hasOwnProperty(group) && jsonMessage.templates[group].hasOwnProperty(itemKey) && jsonMessage.templates[group][itemKey].hasOwnProperty(attr) &&
+                      jsonMessage.templates[group][itemKey][attr].hasOwnProperty("start") && !jsonMessage.templates[group][itemKey][attr].hasOwnProperty("node")) {
+                    jsonMessage.templates[group][itemKey][attr].node = findStartNodeIndex($, textNodes, jsonMessage.elementPaths[group][itemKey][attr],
+                                                                                          jsonMessage.templates[group][itemKey][attr].start, jsonMessage.templates[group][itemKey][attr].end);
+                  }
                 }
               }
             }
@@ -172,7 +204,7 @@ function checkInvalidItem(item) {
   }
   // item is a number
   else {
-    // possibly remove 0.00 values?
+
   }
   return valid;
 }
@@ -288,23 +320,33 @@ function findDefaultValue($, attribute, text, domain, textNodes) {
   default:
     break;
   }
+
   return result;
 }
 
-// to avoid shipping date, take earliest found date
-function findDefaultDate($, text, textNodes) {
-  var date = new Date(),
-      yearIndices = [],
-      dateString = "",
-      elementPath = [],
-      dateValues = [],
-      monthStrings = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+function processDate($, text, textNodes, yearLength) {
+  var date = new Date();
+  var yearIndices = [];
+  var dateString = "";
+  var elementPath = [];
+  var dateValues = [];
+  var template = {};
+  var monthStrings = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  var currentYear = date.getFullYear();
 
-  // what if years are 2 digit? (13, 14)
+  // shrink currentYear to # of digits in yearLength
+  if (yearLength < 4) {
+    var mod = 10000;
+    for (var i = 0; i < 4 - yearLength; i++) {
+      mod /= 10;
+    }
+    currentYear %= mod;
+  }
+
   // find all years in text
-  var targetYear = date.getFullYear() - 2;
+  var targetYear = currentYear - 2;
   // iterate through each year
-  while (targetYear !== date.getFullYear() + 1) {
+  while (targetYear !== currentYear + 1) {
     var result = searchText(targetYear, $, text, textNodes);
     if (result != null) {
       yearIndices = yearIndices.concat(result);
@@ -317,16 +359,16 @@ function findDefaultDate($, text, textNodes) {
     var yearIndex = yearIndices[i];
 
     var prevText, nextText;
-    var year = text.substring(yearIndex.index, yearIndex.index + 4);
+    var year = text.substring(yearIndex.index, yearIndex.index + yearLength);
     var month, day;
-    // split by newline
-    if (yearIndex.index - 14 > 0 && yearIndex.index + 18 < text.length) {
-      prevText = text.substring(yearIndex.index - 14, yearIndex.index).toLowerCase();
-      nextText = text.substring(yearIndex.index + 4, yearIndex.index + 18).toLowerCase();
-    } else if (yearIndex.index - 14 > 0) {
-      prevText = text.substring(yearIndex.index - 14, yearIndex.index).toLowerCase();
-    } else if (yearIndex.index + 18 < text.length) {
-      nextText = text.substring(yearIndex.index + 4, yearIndex.index + 18).toLowerCase()
+    // split by newline or 14 chars from either side of year
+    if (yearIndex.index - 10 - yearLength > 0 && yearIndex.index + 14 + yearLength < text.length) {
+      prevText = text.substring(yearIndex.index - 10 - yearLength, yearIndex.index).toLowerCase();
+      nextText = text.substring(yearIndex.index + yearLength, yearIndex.index + 14 + yearLength).toLowerCase();
+    } else if (yearIndex.index - 10 - yearLength > 0) {
+      prevText = text.substring(yearIndex.index - 10 - yearLength, yearIndex.index).toLowerCase();
+    } else if (yearIndex.index + 14 + yearLength < text.length) {
+      nextText = text.substring(yearIndex.index + yearLength, yearIndex.index + 14 + yearLength).toLowerCase()
     } else {
       continue;
     }
@@ -339,9 +381,10 @@ function findDefaultDate($, text, textNodes) {
       nextText = nextText.substring(0, nextText.indexOf("\n"));
     }
 
-    // find matching month, then calculate for date
+    // find matching month from monthStrings, then calculate for date
     var monthIndex = 0;
 
+    // dates MUST have year at either one end or the other, so look only at next or prev
     for (var j = 0; j < monthStrings.length; j++) {
       var monthString = monthStrings[j];
 
@@ -354,14 +397,18 @@ function findDefaultDate($, text, textNodes) {
         var subNextText = prevText.substring(prevIndex).replace(/[^0-9]/g, "");
         if (parseInt(subNextText) > 0 && parseInt(subNextText) < 32) {
           day = subNextText;
-          var startChange = prevText.length - prevIndex;
+
+          // decrease from start until month index
+          var startChange = prevIndex - prevText.length;
           yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
         } else if (parseInt(subPrevText) > 0 && parseInt(subPrevText) < 32) {
           day = subPrevText;
           // find index of subPrevText in prevText
           var dayIndex = prevText.indexOf(subPrevText);
-          var endChange = prevText.length - dayIndex;
-          yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
+
+          // decrease from start until day index
+          var startChange = dayIndex - prevText.length + dayIndex;
+          yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
         }
       } else if (nextText != null && nextIndex !== -1) {
         month = monthIndex;
@@ -370,12 +417,24 @@ function findDefaultDate($, text, textNodes) {
         if (parseInt(subNextText) > 0 && parseInt(subNextText) < 32) {
           day = parseInt(subNextText);
           var dayIndex = nextText.substring(nextIndex + monthString.length).indexOf(subNextText);
-          var endChange = nextIndex + dayIndex + subNextText.length;
+
+          // add to end up to day index (include day length)
+          var endChange = dayIndex + subNextText.length;
           yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
         } else if (parseInt(subPrevText) > 0 && parseInt(subPrevText) < 32) {
           day = parseInt(subPrevText);
-          var startChange = nextIndex;
-          yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
+
+          var monthString = nextText.substring(nextIndex).replace("[^A-Za-z]", " ");
+          var monthLength;
+          for (monthLength = 0; monthLength < monthString.length; monthLength++) {
+            if (monthString.charAt(monthLength) === " ") {
+              break;
+            }
+          }
+
+          // add to end up to month (include month length)
+          var endChange = nextIndex + monthLength;
+          yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
         }
       } else {
         monthIndex++;
@@ -388,13 +447,31 @@ function findDefaultDate($, text, textNodes) {
       prevText = prevText.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
       var prevNums = prevText.split(" ");
       if (prevNums.length > 1) {
-        var originalMonth = parseInt(prevNums[prevNums.length - 2]);
-        month = originalMonth - 1;
-        day = parseInt(prevNums[prevNums.length - 1]);
+        var dayIndex;
+        var monthIndex;
+        var startChange;
 
-        var dayIndex = prevText.lastIndexOf(prevNums[prevNums.length - 1]) - 1;
-        var monthIndex = prevText.lastIndexOf(prevNums[prevNums.length - 2], dayIndex);
-        var startChange = prevText.length - monthIndex;
+        month = parseInt(prevNums[prevNums.length - 2]) - 1;
+        // if month is invalid, use as day
+        if (month > 11 && month < 31) {
+          day = month + 1;
+          month = parseInt(prevNums[prevNums.length - 1]) - 1;
+
+          monthIndex = prevText.lastIndexOf(month + 1) - 1;
+          dayIndex = prevText.lastIndexOf(day, monthIndex);
+
+          // decrease from start until day index
+          startChange = dayIndex - prevText.length;
+        } else {
+          day = parseInt(prevNums[prevNums.length - 1]);
+
+          dayIndex = prevText.lastIndexOf(day) - 1;
+          monthIndex = prevText.lastIndexOf(month + 1, dayIndex);
+
+          // decrease from start until month index
+          startChange = monthIndex - prevText.length;
+        }
+
         yearIndex = alterSearchData("start", startChange, yearIndex, textNodes);
       } else {
         nextText = nextText.replace(/[^0-9]/g, " ").replace(/\s+/g, " ").trim();
@@ -406,19 +483,29 @@ function findDefaultDate($, text, textNodes) {
 
           var monthIndex = nextText.indexOf(nextNums[0]) + nextNums[0].length;
           var dayIndex = nextText.indexOf(nextNums[1], monthIndex);
-          var endChange = monthIndex + dayIndex + nextNums[1].length;
+
+          // add to end up to day index (include day length)
+          var endChange = dayIndex + nextNums[1].length;
           yearIndex = alterSearchData("end", endChange, yearIndex, textNodes);
         }
       }
     }
 
+    if (yearLength === 1) {
+      year = "201".concat(year);
+    } else if (yearLength === 2) {
+      year = "20".concat(year);
+    } else if (yearLength === 3) {
+      year = "2".concat(year);
+    }
+
     // add date to dateValues if all values are valid
-    if (month != null && month < 12 && day !== null && day > 0 && day < 32) {
+    if (month != null && month < 12 && day != null && day > 0 && day < 32) {
       var elePath;
       // find element to add to dateValues based on text nodes
       if (yearIndex.startNodeIndex === yearIndex.endNodeIndex) {
         elePath = findElementPath($, textNodes[yearIndex.startNodeIndex]);
-        dateValues.push({ date: new Date(year, month, day), elementPath: elePath });
+        dateValues.push({ date: new Date(year, month, day), elementPath: elePath, template: { start: yearIndex.start, end: yearIndex.end, node: yearIndex.startNodeIndex } });
       }
       // text nodes are not the same, find parent element
       else {
@@ -429,7 +516,7 @@ function findDefaultDate($, text, textNodes) {
         }
 
         elePath = findElementPath($, nodeParent);
-        dateValues.push({ date: new Date(year, month, day), elementPath: elePath });
+        dateValues.push({ date: new Date(year, month, day), elementPath: elePath, template: { start: yearIndex.start, end: yearIndex.end, node: yearIndex.startNodeIndex } });
       }
     }
   }
@@ -440,9 +527,11 @@ function findDefaultDate($, text, textNodes) {
     if (currentDate == null) {
       currentDate = value.date;
       elementPath = value.elementPath;
+      template = value.template;
     } else if (value.date.getTime() - currentDate.getTime() < 0) {
       currentDate = value.date;
       elementPath = value.elementPath;
+      template = value.template;
     }
   }
 
@@ -463,9 +552,24 @@ function findDefaultDate($, text, textNodes) {
   }
 
   if (dateString.length >= 10) {
-    return { value: dateString, elementPath: elementPath }
+    return { value: dateString, elementPath: elementPath, template: template }
   } else {
     return null;
+  }
+}
+
+// to avoid shipping date, take earliest found date
+function findDefaultDate($, text, textNodes) {
+  var result = processDate($, text, textNodes, 4);
+
+  if (result == null) {
+    result = processDate($, text, textNodes, 2);
+  }
+
+  if (result != null) {
+    return result;
+  } else {
+    return { value: "", elementPath: null, template: null };
   }
 }
 
@@ -475,23 +579,23 @@ function findDefaultVendor($, text, domain, textNodes) {
     domain = domain.substring(4);
   }
   domain = domain.charAt(0).toUpperCase() + domain.slice(1);
-  return { value: domain, elementPath: null };
+  return { value: domain, elementPath: null, template: null };
 }
 
 function findDefaultTransaction($, text, textNodes) {
-  return { value: "", elementPath: null };
+  return { value: "", elementPath: null, template: null };
 }
 
 function findDefaultItemName($, text, textNodes) {
-  return { value: "", elementPath: null };
+  return { value: "", elementPath: null, template: null };
 }
 
 function findDefaultItemCost($, text, textNodes) {
-  return { value: "0.00", elementPath: null };
+  return { value: "0.00", elementPath: null, template: null };
 }
 
 function findDefaultItemQuantity($, text, textNodes) {
-  return { value: "1", elementPath: null };
+  return { value: "1", elementPath: null, template: null };
 }
 
 // monetary value immediately after keyword 'Total'
@@ -499,7 +603,9 @@ function findDefaultItemQuantity($, text, textNodes) {
 function findDefaultTotal($, text, textNodes) {
   var firstTotalIndex = text.indexOf("Total") + "Total".length;
   var firstTotal;
+  var firstResult;
   var lastTotal;
+  var lastResult;
   var textNodeIndex = 0;
 
   if (firstTotalIndex !== -1) {
@@ -536,11 +642,12 @@ function findDefaultTotal($, text, textNodes) {
         // check if element is within a few levels
         var resultIndex = text.substring(firstTotalIndex, firstTotalIndex + 30).indexOf(firstTotal.replace(/[-]\s+/g, "")) + firstTotal.length;
 
+        var totalElement;
         for (; textNodeIndex < textNodes.length; textNodeIndex++) {
           count += textNodes[textNodeIndex].data.trim().length + 1;
           // textNodes[textNodeIndex] equals Total value text node
           if (count >= firstTotalIndex + resultIndex) {
-            var totalElement = $(textNodes[textNodeIndex].parent);
+            totalElement = $(textNodes[textNodeIndex].parent);
             var parentLength = totalElement.parents().length;
 
             // compare firstTotalElement and totalElement
@@ -556,6 +663,12 @@ function findDefaultTotal($, text, textNodes) {
           }
         }
 
+        if (firstTotal != null) {
+          var elePath = findElementPath($, textNodes[textNodeIndex]);
+          var start = totalElement.text().indexOf(firstTotal);
+          var end = start + firstTotal.length;
+          firstResult = { value: firstTotal, elementPath: elePath, template: { start: start, end: end, node: textNodeIndex }};
+        }
         break;
       } else {
         firstTotal = null;
@@ -595,11 +708,12 @@ function findDefaultTotal($, text, textNodes) {
           // check if element is within a few levels
           var resultIndex = text.substring(lastTotalIndex, lastTotalIndex + 30).indexOf(lastTotal.replace(/[-]\s+/g, "")) + lastTotal.length;
 
+          var totalElement;
           for (; textNodeIndex < textNodes.length; textNodeIndex++) {
             count += textNodes[textNodeIndex].data.trim().length + 1;
             // textNodes[textNodeIndex] equals Total value text node
             if (count >= lastTotalIndex + resultIndex) {
-              var totalElement = $(textNodes[textNodeIndex].parent);
+              totalElement = $(textNodes[textNodeIndex].parent);
               var parentLength = totalElement.parents().length;
 
               // compare firstTotalElement and totalElement
@@ -615,6 +729,12 @@ function findDefaultTotal($, text, textNodes) {
             }
           }
 
+          if (lastTotal != null) {
+            var elePath = findElementPath($, textNodes[textNodeIndex]);
+            var start = totalElement.text().indexOf(lastTotal);
+            var end = start + lastTotal.length;
+            lastResult = { value: lastTotal, elementPath: elePath, template: { start: start, end: end, node: textNodeIndex }};
+          }
           break;
         } else {
           lastTotal = null;
@@ -625,14 +745,15 @@ function findDefaultTotal($, text, textNodes) {
   }
 
   if (lastTotal != null) {
-    return { value: lastTotal, elementPath: null };
+    return lastResult;
   } else if (firstTotal != null) {
-    return { value: firstTotal, elementPath: null };
+    return firstResult;
   } else {
-    return { value: "0.00", elementPath: null };
+    return { value: "0.00", elementPath: null, template: null };
   }
 }
 
+// DEPRECIATED - shipping is in default taxes
 // monetary value immediately after keyword 'Shipping'
 // ignores Free Shipping keyword and doesn't look past any Total keywords
 // check instances of the word from the end to the beginning for +'ve #s after
@@ -642,46 +763,48 @@ function findDefaultShipping($, text, textNodes) {
   var shipping;
   var shippingIndex = text.lastIndexOf("Shipping") + "Shipping".length;
 
-  // horrible workaround to ignore "Free U.S. Shipping" and similar cases
+  // workaround to ignore "Free U.S. Shipping" and similar cases
   while (text.substring(shippingIndex - 20, shippingIndex).indexOf("Free") !== -1) {
     shippingIndex = text.lastIndexOf("Shipping", shippingIndex - "Shipping".length - 1) + "Shipping".length;
   }
 
-  while (shipping == null && shippingIndex - "Shipping".length !== -1) {
-    var shippingText = text.substring(shippingIndex, shippingIndex + 45);
-    if (shippingText.indexOf("Total") !== -1) {
-      shippingText = shippingText.substring(0, shippingText.indexOf("Total"));
-    }
-
-    // all numbers following, separated by spaces
-    var shippingNumbers = shippingText.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
-
-    // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
-    var startIndex;
-    var endIndex = -1;
-    while (endIndex !== shippingNumbers.length) {
-      startIndex = endIndex + 1;
-      endIndex = shippingNumbers.indexOf(" ", startIndex);
-      if (endIndex === -1) {
-        endIndex = shippingNumbers.length;
+  if (shippingIndex !== -1 + "Shipping".length) {
+    while (shipping == null && shippingIndex - "Shipping".length !== -1) {
+      var shippingText = text.substring(shippingIndex, shippingIndex + 45);
+      if (shippingText.indexOf("Total") !== -1) {
+        shippingText = shippingText.substring(0, shippingText.indexOf("Total"));
       }
 
-      shipping = shippingNumbers.substring(startIndex, endIndex);
-      // if it is a valid number and positive, keep it!
-      if (shipping.length > 0 && !isNaN(parseFloat(shipping)) && parseFloat(shipping) >= 0) {
-        break;
-      } else {
-        shipping = null;
-      }
-    }
+      // all numbers following, separated by spaces
+      var shippingNumbers = shippingText.replace(/[^0-9.\-]/g, " ").replace(/\s+/g, " ").replace(/[-]\s+/g, "-").trim();
 
-    shippingIndex = text.lastIndexOf("Shipping", shippingIndex - "Shipping".length - 1) + "Shipping".length;
+      // loop through all characters to form numbers (by searching for space characters) until a valid number appears or end of string
+      var startIndex;
+      var endIndex = -1;
+      while (endIndex !== shippingNumbers.length) {
+        startIndex = endIndex + 1;
+        endIndex = shippingNumbers.indexOf(" ", startIndex);
+        if (endIndex === -1) {
+          endIndex = shippingNumbers.length;
+        }
+
+        shipping = shippingNumbers.substring(startIndex, endIndex);
+        // if it is a valid number and positive, keep it!
+        if (shipping.length > 0 && !isNaN(parseFloat(shipping)) && parseFloat(shipping) >= 0) {
+          break;
+        } else {
+          shipping = null;
+        }
+      }
+
+      shippingIndex = text.lastIndexOf("Shipping", shippingIndex - "Shipping".length - 1) + "Shipping".length;
+    }
   }
 
   if (shipping != null) {
-    return { value: shipping, elementPath: null };
+    return { value: shipping, elementPath: null, template: null };
   } else {
-    return { value: "0.00", elementPath: null };
+    return { value: "0.00", elementPath: null, template: null };
   }
 }
 
@@ -722,13 +845,15 @@ function findDefaultCurrency($, text, domain, textNodes) {
     }
   }
 
-  return { value: currency, elementPath: null };
+  return { value: currency, elementPath: null, template: null };
 }
 
 // tries multiple tax-style keywords and finds all non-total rows around it to add to tax table
 // value would be { 0: { tax: "", price: "" } }
 function findDefaultTaxes($, text, textNodes) {
-  var result = null;
+  var result;
+  // temporarily hold 1st value so it can be ordered properly later
+  var tempResult = {};
 
   var lowerText = text.toLowerCase();
   var keyword = "tax";
@@ -749,16 +874,17 @@ function findDefaultTaxes($, text, textNodes) {
     lastIndex = lowerText.lastIndexOf(keyword);
   }
 
-  var index = 0;
   var taxElement;
   var taxElementPath;
   var taxRowElement;
   var taxTextNodeOrder;
+  var taxTemplate = {};
 
   var valueElement;
   var valueElementPath;
   var valueRowElement;
   var valueTextNodeOrder;
+  var valueTemplate = {};
 
   var tax;
   var value;
@@ -786,6 +912,7 @@ function findDefaultTaxes($, text, textNodes) {
           for (var i = 0; i < childNodes.length; i++) {
             if (childNodes[i] === textNodes[textNodeIndex]) {
               taxTextNodeOrder = i;
+              taxTemplate.node = textNodeIndex;
               break;
             }
           }
@@ -798,7 +925,14 @@ function findDefaultTaxes($, text, textNodes) {
 
         tax = textNodes[textNodeIndex].data.trim();
         // trim numbers from tax
-        tax = tax.replace(/[0-9.\-]/g, " ").replace(/\s+/g, " ").trim();
+        tax = tax.replace(/[0-9.\-]/g, " ").trim();
+        taxTemplate.start = textNodes[textNodeIndex].data.trim().indexOf(tax);
+        if (taxTemplate.start === -1) {
+          taxTemplate.start = 0;
+        }
+        taxTemplate.end = taxTemplate.start + tax.length;
+
+        tax = tax.replace(/\s+/g, " ");
 
         if (tax.toLowerCase().indexOf("total") !== -1) {
           break;
@@ -806,8 +940,9 @@ function findDefaultTaxes($, text, textNodes) {
 
         var valueBuffer = 30;
         // keep trying textNodes until a valid value is found or until 30 characters have been searched
+        var tempNodeIndex = textNodeIndex;
         while (valueBuffer > 0 && valueElement == null) {
-          value = textNodes[textNodeIndex].data;
+          value = textNodes[tempNodeIndex].data;
           if (value.indexOf(keyword) !== -1) {
             value = value.substring(value.indexOf(keyword) + keyword.length);
           }
@@ -822,12 +957,37 @@ function findDefaultTaxes($, text, textNodes) {
             value = valueNumbers.substring(startIndex, endIndex);
 
             if (value.length > 0 && !isNaN(parseFloat(value)) && parseFloat(value) >= 0) {
-              valueElement = $(textNodes[textNodeIndex].parent);
+              valueElement = $(textNodes[tempNodeIndex].parent);
 
               var childNodes = valueElement[0].children;
               for (var i = 0; i < childNodes.length; i++) {
-                if (childNodes[i] === textNodes[textNodeIndex]) {
+                if (childNodes[i] === textNodes[tempNodeIndex]) {
                   valueTextNodeOrder = i;
+                  valueTemplate.node = tempNodeIndex;
+
+                  // matchValue alters start calculation for "-" symbol in front
+                  var matchValue;
+                  if (value.indexOf("-") !== -1) {
+                    matchValue = value.replace(/-/g, "");
+                  }
+
+                  if (matchValue != null) {
+                    valueTemplate.start = textNodes[tempNodeIndex].data.trim().indexOf(matchValue);
+                    if (valueTemplate.start === -1) {
+                      valueTemplate.start = 0;
+                    }
+                    valueTemplate.end = valueTemplate.start + matchValue.length;
+
+                    while (textNodes[tempNodeIndex].data.trim().charAt(valueTemplate.start) !== "-" || valueTemplate.start !== 0) {
+                      valueTemplate.start = valueTemplate.start - 1;
+                    }
+                  } else {
+                    valueTemplate.start = textNodes[tempNodeIndex].data.trim().indexOf(value);
+                    if (valueTemplate.start === -1) {
+                      valueTemplate.start = 0;
+                    }
+                    valueTemplate.end = valueTemplate.start + value.length;
+                  }
                   break;
                 }
               }
@@ -842,26 +1002,49 @@ function findDefaultTaxes($, text, textNodes) {
           if (valueElement == null) {
             value = valueNumbers.substring(startIndex);
             if (value.length > 0 && !isNaN(parseFloat(value)) && parseFloat(value) >= 0) {
-              valueElement = $(textNodes[textNodeIndex].parent);
+              valueElement = $(textNodes[tempNodeIndex].parent);
 
               var childNodes = valueElement[0].children;
               for (var i = 0; i < childNodes.length; i++) {
-                if (childNodes[i] === textNodes[textNodeIndex]) {
+                if (childNodes[i] === textNodes[tempNodeIndex]) {
                   valueTextNodeOrder = i;
+                  valueTemplate.node = tempNodeIndex;
+
+                  // matchValue alters start calculation for "-" symbol in front
+                  var matchValue;
+                  if (value.indexOf("-") !== -1) {
+                    matchValue = value.replace(/-/g, "");
+                  }
+
+                  if (matchValue != null) {
+                    valueTemplate.start = textNodes[tempNodeIndex].data.trim().indexOf(matchValue);
+                    if (valueTemplate.start === -1) {
+                      valueTemplate.start = 0;
+                    }
+                    valueTemplate.end = valueTemplate.start + matchValue.length;
+
+                    while (textNodes[tempNodeIndex].data.trim().charAt(valueTemplate.start) !== "-" || valueTemplate.start !== 0) {
+                      valueTemplate.start = valueTemplate.start - 1;
+                    }
+                  } else {
+                    valueTemplate.start = textNodes[tempNodeIndex].data.trim().indexOf(value);
+                    if (valueTemplate.start === -1) {
+                      valueTemplate.start = 0;
+                    }
+                    valueTemplate.end = valueTemplate.start + value.length;
+                  }
                   break;
                 }
               }
             }
           }
-
-          count -= textNodes[textNodeIndex].data.trim().length + 1;
-          textNodeIndex++;
+          tempNodeIndex++;
         }
 
         // if valueElement doesn't exist, don't use this textNode
         if (valueElement != null) {
           taxRowElement = taxElement;
-          for (var i = 0; i < taxElementPath.length; i++) {
+          for (var i = 1; i < taxElementPath.length; i++) {
             taxRowElement = taxRowElement.parent();
           }
 
@@ -874,7 +1057,7 @@ function findDefaultTaxes($, text, textNodes) {
               break;
             } else {
               valueRowElement = valueElement;
-              for (var i = 0; i < valueElementPath.length; i++) {
+              for (var i = 1; i < valueElementPath.length; i++) {
                 valueRowElement = valueRowElement.parent();
               }
 
@@ -886,12 +1069,9 @@ function findDefaultTaxes($, text, textNodes) {
             }
           }
 
-          // validation has passed, so results are added to taxes for sure
-          if (result == null) {
-            result = { value: {}, elementPath: null };
-          }
-          result.value[index] = { tax: tax, price: value };
-          index++;
+          tempResult.value = { tax: tax, price: value };
+          tempResult.elementPath = { tax: findElementPath($, taxElement[0]), price: findElementPath($, valueElement[0]) };
+          tempResult.template = { tax: taxTemplate, price: valueTemplate };
           break;
         }
       }
@@ -899,17 +1079,31 @@ function findDefaultTaxes($, text, textNodes) {
 
     // search for other taxes from sibling rows to found result
     if (valueElement != null) {
+      // validation has passed, so results are added to taxes for sure
+      result = { value: {}, elementPath: {}, template: {} };
+      var index = 0;
+
       var prevRows = taxRowElement.prevAll();
-      for (var i = 0; i < prevRows.length; i++) {
+      for (var i = prevRows.length - 1; i >= 0; i--) {
         var row = $(prevRows[i]);
 
         var taxResult = calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath, valueTextNodeOrder);
         // only add if result doesn't contain total
-        if (taxResult != null && taxResult.tax.toLowerCase().indexOf("total") === -1) {
-          result.value[index] = taxResult;
+        if (taxResult != null && taxResult.value.tax.toLowerCase().indexOf("total") === -1) {
+          result.value[index] = taxResult.value;
+          taxResult.elementPath.tax = findElementPath($, taxResult.elementPath.tax);
+          taxResult.elementPath.price = findElementPath($, taxResult.elementPath.price);
+          result.elementPath[index] = taxResult.elementPath;
+          result.template[index] = taxResult.template;
           index++;
         }
       }
+
+      // add middle result
+      result.value[index] = tempResult.value;
+      result.elementPath[index] = tempResult.elementPath;
+      result.template[index] = tempResult.template;
+      index++;
 
       var nextRows = taxRowElement.nextAll();
       for (var i = 0; i < nextRows.length; i++) {
@@ -917,8 +1111,12 @@ function findDefaultTaxes($, text, textNodes) {
 
         var taxResult = calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath, valueTextNodeOrder);
         // only add if result doesn't contain total
-        if (taxResult != null && taxResult.tax.toLowerCase().indexOf("total") === -1) {
-          result.value[index] = taxResult;
+        if (taxResult != null && taxResult.value.tax.toLowerCase().indexOf("total") === -1) {
+          result.value[index] = taxResult.value;
+          taxResult.elementPath.tax = findElementPath($, taxResult.elementPath.tax);
+          taxResult.elementPath.price = findElementPath($, taxResult.elementPath.price);
+          result.elementPath[index] = taxResult.elementPath;
+          result.template[index] = taxResult.template;
           index++;
         }
       }
@@ -956,32 +1154,46 @@ function findDefaultTaxes($, text, textNodes) {
 function calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath, valueTextNodeOrder) {
   var tax;
   var value;
+  var taxElement;
+  var valueElement;
+  var taxTemplate = {};
+  var valueTemplate = {};
 
   // traverse elementPath for row, see if matches
-  var newElement = traverseElementPath(row, taxElementPath);
-  if (newElement == null || newElement[0].children.length <= taxTextNodeOrder) {
+  var taxElement = traverseElementPath(row, taxElementPath);
+  if (taxElement == null || taxElement[0].children.length <= taxTextNodeOrder) {
     return null;
   }
 
-  var textNode = newElement[0].children[taxTextNodeOrder];
+  var textNode = taxElement[0].children[taxTextNodeOrder];
   if (textNode.type !== "text") {
     return null;
   }
 
   tax = textNode.data.trim();
   // trim numbers from tax
-  tax = tax.replace(/[0-9.\-]/g, " ").replace(/\s+/g, " ").trim();
+  tax = tax.replace(/[0-9.\-]/g, " ").trim();
+
+  taxTemplate.start = textNode.data.trim().indexOf(tax);
+  if (taxTemplate.start === -1) {
+    taxTemplate.start = 0;
+  }
+  taxTemplate.end = taxTemplate.start + tax.length;
+
+  tax = tax.replace(/\s+/g, " ");
 
   // valueElement is not the same as taxElement
   if (valueElementPath != null) {
-    newElement = traverseElementPath(row, valueElementPath);
+    valueElement = traverseElementPath(row, valueElementPath);
+  } else {
+    valueElement = taxElement;
   }
 
-  if (newElement == null || newElement[0].children.length <= valueTextNodeOrder) {
+  if (valueElement == null || valueElement[0].children.length <= valueTextNodeOrder) {
     return null;
   }
 
-  textNode = newElement[0].children[valueTextNodeOrder];
+  textNode = valueElement[0].children[valueTextNodeOrder];
   if (textNode.type !== "text") {
     return null;
   }
@@ -1015,9 +1227,56 @@ function calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath
 
   // add to results
   if (valueFound) {
-    return { tax: tax, price: value };
+    // matchValue alters start calculation for "-" symbol in front
+    var matchValue;
+    if (value.indexOf("-") !== -1) {
+      matchValue = value.replace(/-/g, "");
+    }
+
+    if (matchValue != null) {
+      valueTemplate.start = textNode.data.trim().indexOf(matchValue);
+      if (valueTemplate.start === -1) {
+        valueTemplate.start = 0;
+      }
+      valueTemplate.end = valueTemplate.start + matchValue.length;
+
+      while (textNode.data.trim().charAt(valueTemplate.start) !== "-" || valueTemplate.start !== 0) {
+        valueTemplate.start = valueTemplate.start - 1;
+      }
+    } else {
+      valueTemplate.start = textNode.data.trim().indexOf(value);
+      if (valueTemplate.start === -1) {
+        valueTemplate.start = 0;
+      }
+      valueTemplate.end = valueTemplate.start + value.length;
+    }
+
+    return { value: { tax: tax, price: value }, elementPath: { tax: taxElement[0], price: valueElement[0] }, template: { tax: taxTemplate, price: valueTemplate} };
   } else {
     return null;
+  }
+}
+
+// given a template result, finds start node index with element, start, and end
+// startNodeIndex is the index of 1st text node in document containing result
+function findStartNodeIndex($, textNodes, elementPath, start, end) {
+  var element = traverseElementPath($("body").eq(0), elementPath);
+
+  // iterate through textNodes until parent is contained in element
+  // once textNode parent is contained in element, start count for start/end
+  var count = 0;
+  for (var index = 0; index < textNodes.length; index++) {
+    if (contains(element[0], textNodes[index].parent)) {
+      if (count === 0) {
+        count += textNodes[index].data.trim().length;
+      } else {
+        count += textNodes[index].data.trim().length + 1;
+      }
+
+      if (count > start) {
+        return index;
+      }
+    }
   }
 }
 
@@ -1039,6 +1298,8 @@ function findClosestRowElement(element) {
     element = element.parent();
     matchFound = matchRowTag(element[0].name);
   }
+
+  elementPath.unshift(0);
   return elementPath;
 }
 
@@ -1052,8 +1313,9 @@ function matchRowTag(tag) {
   return null;
 }
 
+// first 0 in elementPath is body
 function traverseElementPath(element, elementPath) {
-  for (var i = 0; i < elementPath.length; i++) {
+  for (var i = 1; i < elementPath.length; i++) {
     var order = elementPath[i];
     element = element.children();
     if (element.length > 0) {
@@ -1132,7 +1394,7 @@ function initializeContentSearch($, callback) {
   if ($(selector).length > 0) {
     var children = $(selector)[0].children;
     for (var i = 0; i < children.length; i++) {
-      params = iterateText(children[i], initTextNodes, params);
+      params = iterateText($, children[i], initTextNodes, params);
     }
     callback(params);
   } else {
@@ -1169,7 +1431,7 @@ function addText(node, params) {
   return params;
 }
 
-function iterateText(node, method, methodParams) {
+function iterateText($, node, method, methodParams) {
   // run method for non-whitespace text nodes
   if (node.type === "text" && /\S/.test(node.data)) {
     methodParams = method(node, methodParams);
@@ -1179,12 +1441,15 @@ function iterateText(node, method, methodParams) {
     methodParams = method(node, methodParams);
   }
   // iterateText through children of non-style/script elements
-  else if (node.type === "tag" && node.children.length > 0 && !/(style|script)/i.test(node.name)) {
-    var children = node.children;
-    for (var i = 0; i < children.length; i++) {
-      methodParams = iterateText(children[i], method, methodParams);
-      if (methodParams.result != null && methodParams.result === false) {
-        break;
+  else if (node.type === "tag" && node.children.length > 0 && !/(style|script|select)/i.test(node.name)) {
+    var style = $(node).css();
+    if (style.visibility !== "hidden" && style.display !== "none") {
+      var children = node.children;
+      for (var i = 0; i < children.length; i++) {
+        methodParams = iterateText($, children[i], method, methodParams);
+        if (methodParams.result != null && methodParams.result === false) {
+          break;
+        }
       }
     }
   }
@@ -1247,7 +1512,7 @@ function searchText(searchTerm, $, text, textNodes) {
     // iterate through all children of body element
     var children = $("body")[0].children;
     for (var i = 0; i < children.length; i++) {
-      params = iterateText(children[i], findMatch, params);
+      params = iterateText($, children[i], findMatch, params);
       if (params.result === false) {
         console.log("Found all " + searchTerm + " matches in document");
         break;
@@ -1434,25 +1699,57 @@ function findMatch(node, params) {
           });
 }
 
+// modify start or end index by relative change index
+// change is expected to be valid in the scope of textNodes
 function alterSearchData(modifyFrom, change, data, textNodes) {
   if (modifyFrom === "start") {
-    if (change > data.start) {
-      change -= data.start;
-      data.startNodeIndex = data.startNodeIndex - 1;
-      while (textNodes[yearIndex.startNodeIndex].data.trim().length > change) {
-        change -= textNodes[data.startNodeIndex].data.trim().length;
+    var finalIndex = data.start + change;
+
+    // new index is < than old, startNodeIndex decreased
+    if (finalIndex < 0) {
+      // make finalIndex # of characters from end of previous textNode
+      finalIndex += data.start;
+
+      // keep iterating back startNodeIndex until finalIndex is a positive index
+      while (finalIndex < 0) {
         data.startNodeIndex = data.startNodeIndex - 1;
+        finalIndex += textNodes[data.startNodeIndex].data.trim().length + 1;
       }
     }
+    // new index is > than old, startNodeIndex maybe increased
+    else if (finalIndex > 0) {
+      while (finalIndex > textNodes[data.startNodeIndex].data.trim().length) {
+        finalIndex -= textNodes[data.startNodeIndex].data.trim().length + 1;
+        data.startNodeIndex = data.startNodeIndex + 1;
+      }
+    }
+
+    // set start index
+    data.start = finalIndex;
   } else if (modifyFrom === "end") {
-    if (change > textNodes[data.endNodeIndex].data.trim().length - data.end) {
-      change -= textNodes[data.endNodeIndex].data.trim().length - data.end;
-      data.endNodeIndex = data.endNodeIndex + 1;
-      while (textNodes[data.endNodeIndex].data.trim().length > change) {
-        change -= textNodes[data.endNodeIndex].data.trim().length;
+    var finalIndex = data.end + change;
+
+    // new index is < than old, endNodeIndex decreased
+    if (finalIndex < 0) {
+      // make finalIndex # of characters from end of previous textNode
+      finalIndex += data.end;
+
+      // keep iterating back endNodeIndex until finalIndex is a positive index
+      while (finalIndex < 0) {
+        data.endNodeIndex = data.endNodeIndex - 1;
+        finalIndex += textNodes[data.endNodeIndex].data.trim().length + 1;
+      }
+    }
+    // new index is > than old, endNodeIndex maybe increased
+    else if (finalIndex > 0) {
+      while (finalIndex > textNodes[data.endNodeIndex].data.trim().length) {
+        finalIndex -= textNodes[data.endNodeIndex].data.trim().length + 1;
         data.endNodeIndex = data.endNodeIndex + 1;
       }
     }
+
+    // set end index
+    data.end = finalIndex;
   }
   return data;
 }

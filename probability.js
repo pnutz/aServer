@@ -11,7 +11,7 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
     // get domain id
     function(series_callback) {
       Access.getIdByValue("ser_domain", "domain_name", domain, function(access_domain_id) {
-        if (access_domain_id !== null) {
+        if (access_domain_id != null) {
           domain_id = access_domain_id;
           series_callback();
         } else {
@@ -25,11 +25,11 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
       var keys = Object.keys(generatedData);
 
       async.eachSeries(keys, function(key, callback) {
-        if (key !== "items" && key !== "templates") {
+        if (key !== "items" && key !== "taxes" && key !== "templates") {
           if (generatedData.templates[key] !== null) {
             // user has changed generated data
             if (savedData.hasOwnProperty(key) && savedData[key] !== generatedData[key]) {
-              TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates[key], function(template_domain) {
+              TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates[key].id, function(template_domain) {
                 console.log("------------- decrease probability for " + key + " template_domain -------------");
                 template_domain.total_count++;
                 template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
@@ -38,7 +38,7 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
             }
             // user used generated data
             else {
-              TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates[key], function(template_domain) {
+              TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates[key].id, function(template_domain) {
                 console.log("------------- increase probability for " + key + " template_domain -------------");
                 template_domain.correct_count++;
                 template_domain.total_count++;
@@ -49,26 +49,27 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
           } else {
             callback();
           }
+        // TODO: add key taxes
         } else if (key === "items") {
           var template_groups = {};
           var item_keys = Object.keys(generatedData.items);
           async.eachSeries(item_keys, function(item_key, each_callback) {
-            if (generatedData.templates.items[item_key] !== null) {
+            if (generatedData.templates.items[item_key] != null) {
               var item_attributes = generatedData.items[item_key];
               var attribute_keys = Object.keys(item_attributes);
               async.eachSeries(attribute_keys, function(attribute_key, each_callback2) {
-                if (generatedData.templates.items[item_key][attribute_key] !== null) {
+                if (generatedData.templates.items[item_key][attribute_key] != null) {
                   // user deleted item generated
                   if (generatedData.templates.items[item_key].hasOwnProperty("deleted") ||
                       // or user has changed item attribute data
-                      (savedData.items[item_key][attribute_key] !== null && savedData.items[item_key][attribute_key] !== item_attributes[attribute_key])) {
+                      (savedData.items[item_key][attribute_key] != null && savedData.items[item_key][attribute_key] !== item_attributes[attribute_key])) {
                     async.series([
                       function(series_callback2) {
-                        Template.getTemplateById(generatedData.templates.items[item_key][attribute_key], function(err, template) {
+                        Template.getTemplateById(generatedData.templates.items[item_key][attribute_key].id, function(err, template) {
                           if (err) {
                             series_callback2(err);
                           } else {
-                            if (template_groups[template.template_group_id] === null) {
+                            if (template_groups[template.template_group_id] == null) {
                               template_groups[template.template_group_id] = true;
                             }
                             series_callback2();
@@ -76,7 +77,7 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
                         });
                       },
                       function(series_callback2) {
-                        TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates.items[item_key][attribute_key], function(template_domain) {
+                        TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates.items[item_key][attribute_key].id, function(template_domain) {
                           console.log("------------- decrease probability for " + attribute_key + " template_domain -------------");
                           template_domain.total_count++;
                           template_domain.probability_success = template_domain.correct_count / template_domain.total_count;
@@ -94,11 +95,11 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
                   else {
                     async.series([
                       function(series_callback2) {
-                        Template.getTemplateById(generatedData.templates.items[item_key][attribute_key], function(err, template) {
+                        Template.getTemplateById(generatedData.templates.items[item_key][attribute_key].id, function(err, template) {
                           if (err) {
                             series_callback2(err);
                           } else {
-                            if (template_groups[template.template_group_id] === null) {
+                            if (template_groups[template.template_group_id] == null) {
                               template_groups[template.template_group_id] = true;
                             }
                             series_callback2();
@@ -106,7 +107,7 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
                         });
                       },
                       function(series_callback2) {
-                        TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates.items[item_key][attribute_key], function(template_domain) {
+                        TemplateDomain.getTemplateDomainByIds(domain_id, generatedData.templates.items[item_key][attribute_key].id, function(template_domain) {
                           console.log("------------- increase probability for " + attribute_key + " template_domain -------------");
                           template_domain.correct_count++;
                           template_domain.total_count++;
@@ -133,12 +134,12 @@ exports.compareGeneratedSavedData = function(domain, generatedData, savedData) {
                 var group_keys = Object.keys(template_groups);
                 async.eachSeries(group_keys, function(group_key, each_callback2) {
                   TemplateGroup.getTemplateGroupById(group_key, function(group) {
-                    if (group !== null) {
+                    if (group != null) {
                       group.correct_count = 0;
                       group.total_count = 0;
                       // loop through template_group template's template_domains
                       TemplateDomain.getTemplateDomainsByGroup(group.id, function(template_domains) {
-                        if (template_domains !== null) {
+                        if (template_domains != null) {
                           async.eachSeries(template_domains, function(template_domain, each_callback3) {
                             group.correct_count += template_domain.correct_count;
                             group.total_count += template_domain.total_count;

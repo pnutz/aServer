@@ -14,7 +14,7 @@ function TemplateGroup(id, domain, group_id, probability, variance, correct_coun
   }
 
   this.id = id;
-  
+
   if (typeof domain == "number") {
     this.domain_id = domain;
     this._domain = null;
@@ -22,7 +22,7 @@ function TemplateGroup(id, domain, group_id, probability, variance, correct_coun
     this.domain_id = null;
     this._domain = domain;
   }
-  
+
   this.group_id = group_id;
   this.probability_success = probability;
   this.variance = variance;
@@ -137,7 +137,7 @@ TemplateGroup.getTemplateGroupById = function(id, callback) {
 };
 
 TemplateGroup.getTemplateGroups = function(group_id, domain_id, func_callback) {
-  Access.selectByColumn("ser_template_group", "group_id", group_id, "AND domain_id = " + domain_id + 
+  Access.selectByColumn("ser_template_group", "group_id", group_id, "AND domain_id = " + domain_id +
                         " AND probability_success > 0.1 " +
                         "ORDER BY probability_success DESC LIMIT 20",
     function(result) {

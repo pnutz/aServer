@@ -153,4 +153,34 @@ Element.getElementPathByTemplate = function(templateId, callback) {
   console.log(query.sql);
 };
 
+// exclude elements with index of -1 (children of root element)
+Element.getArrayElementPathByTemplate = function(templateId, callback) {
+  var statement = "SELECT a.*, b.tag_name AS tag FROM ser_element AS a INNER JOIN ser_html_tag AS b ON a.tag_id = b.id " +
+                "WHERE a.template_id = " + templateId + " AND a.index >= 0 ORDER BY a.index";
+  var query = db.query(statement, function(err, rows) {
+    if (rows != null) {
+      var elementPath = [];
+      for (var i = 0; i < rows.length; i++) {
+        elementPath.push(rows[i].order);
+      }
+      return callback(null, elementPath);
+    } else {
+      return callback(new Error("No elements for templateId " + templateId));
+    }
+  });
+  console.log(query.sql);
+};
+
+Element.matchElementPath = function(elementPath1, elementPath2) {
+  if (elementPath1.length !== elementPath2.length) {
+    return false;
+  }
+  for (var i = 0; i < elementPath1; i++) {
+    if (elementPath1[i] !== elementPath2[i]) {
+      return false;
+    }
+  }
+  return true;
+};
+
 module.exports = Element;

@@ -104,8 +104,119 @@ exports.generateTemplates = function(userId, domain, url, html, attributeData) {
 
 function generateTemplateGroup($, userId, urlId, domainId, groupName, attributeGroup, index, templateCallback) {
   var templateGroupId;
+  var templates = {};
 
   async.series([
+    // get template groups and associated templates
+    function(callback) {
+      TemplateGroup.getTemplateGroups(global.attributes.groupedAttributes[groupName].id, domainId, function(results) {
+        if (results != null) {
+          // loop through template groups
+          async.eachSeries(results, function(group, eachCallback) {
+            Template.getTextTemplatesByGroup(group.id, function(err, groupTemplates) {
+              if (err) {
+                console.log(err.message);
+              } else {
+                templates[group.id] = groupTemplates;
+              }
+              return eachCallback();
+            });
+          }, function(err) {
+            if (err) {
+              console.log(err.message);
+            }
+            return callback();
+          });
+        } else {
+          return callback();
+        }
+      });
+    },
+    // if row elementPath exists for new template, check if it matches existing templates
+    function(callback) {
+      if (attributeGroup.hasOwnProperty("row")) {
+        var elementPath = attributeGroup["row"];
+        var templateKeys = Object.keys(templates);
+        async.eachSeries(templateKeys, function(key, eachCallback) {
+          var group = templates[key];
+          var hasRowAttr = false;
+
+          for (var j = 0; j < group.length; j++) {
+            if (group[j].attribute_id === global.attributes.groupedAttributes[groupName].row.id) {
+              Element.getArrayElementPathByTemplate(group[j].id, function(err, templateElementPath) {
+                if (err) {
+                  console.log(err.message);
+                } else if (templateElementPath.length !== elementPath.length || !Element.matchElementPath(elementPath, templateElementPath)) {
+                  delete templates[key];
+                }
+                return eachCallback();
+              });
+
+              hasRowAttr = true;
+              break;
+            }
+          }
+
+          // remove template groups that do not match
+          if (!hasRowAttr) {
+            delete templates[key];
+            return eachCallback();
+          }
+        }, function(err) {
+          if (err) {
+            console.log(err.message);
+          }
+          return callback();
+        });
+      } else {
+        return callback();
+      }
+    },
+    // compare elementPaths for non-row attributes in groups remaining in templates
+    function(callback) {
+      var templateKeys = Object.keys(templates);
+      // iterate through template groups
+      async.eachSeries(templateKeys, function(key, eachCallback) {
+        var group = templates[key];
+        // iterate through attr templates in group
+        async.eachSeries(group, function(attr, eachCallback2) {
+          // compare non-row attributes
+          if (attr.attribute_id !== global.attributes.groupedAttributes[groupName].row.id) {
+            var attributes = Object.keys(global.attributes.groupedAttributes[groupName]);
+            var attribute;
+            for (var i = 0; i < attributes.length; i++) {
+              if (attributes[i] !== "id" && global.attributes.groupedAttributes[groupName][attributes[i]].id === attr.attribute_id) {
+                attribute = attributes[i];
+                break;
+              }
+            }
+
+            if (attribute != null) {
+              findTemplateMatch($, attribute, index, attributeGroup[attribute], attr, eachCallback2);
+            } else {
+              return eachCallback2();
+            }
+          } else {
+            return eachCallback2();
+          }
+        }, function(err) {
+          // err is returned when non-duplicate is found to stop processing the group
+          if (err) {
+            console.log(err.message);
+            return eachCallback();
+          } else {
+            return eachCallback(new Error("duplicate template group found"));
+          }
+        });
+      }, function(err) {
+        // err is returned when exact duplicate is found, stop processing grouped templateElementPath
+        if (err) {
+          return callback(err);
+        } else {
+          return callback();
+        }
+      });
+    },
     // create template group
     function(callback) {
       var templateGroup = new TemplateGroup(null, domainId, global.attributes.groupedAttributes[groupName].id, 1, null, 1, 1);
@@ -135,7 +246,7 @@ function generateTemplateGroup($, userId, urlId, domainId, groupName, attributeG
     },
     // generate (optional) row template for template group
     function(callback) {
-      generateRowTemplate($, userId, attributeGroup["row"], urlId, templateGroupId, callback);
+      generateRowTemplate($, userId, attributeGroup["row"], urlId, templateGroupId, groupName, callback);
     }
   ], function(err, result) {
     if (err) {
@@ -147,9 +258,9 @@ function generateTemplateGroup($, userId, urlId, domainId, groupName, attributeG
   });
 }
 
-function generateRowTemplate($, userId, elementPath, urlId, templateGroupId, callback) {
+function generateRowTemplate($, userId, elementPath, urlId, templateGroupId, groupName, callback) {
   // attribute id for row
-  var rowAttributeId = global.attributes.groupedAttributes.items.row.id;
+  var rowAttributeId = global.attributes.groupedAttributes[groupName].row.id;
 
   var newTemplate = new Template(null, rowAttributeId, templateGroupId, urlId, userId);
   newTemplate.save(function(templateId) {
@@ -168,51 +279,154 @@ function generateRowTemplate($, userId, elementPath, urlId, templateGroupId, cal
   });
 }
 
+// returns error in callback if template does not match with new $, elementPath
+function findTemplateMatch($, attribute, groupIndex, elementPath, template, callback) {
+  var dataAttrSelector = "data-tworeceipt-" + attribute;
+  if (groupIndex != null) {
+    dataAttrSelector += groupIndex;
+  }
+  var elementDom = $("[" + dataAttrSelector + "-start]");
+
+  var textSelection;
+  var startIndex;
+  var endIndex;
+  var leftText;
+  var rightText;
+
+  getElementText($, elementDom, function(text) {
+    // HARD-CODED &nbsp; REMOVAL (case: amazon.ca)
+    text = text.replace(/&nbsp;/g, "");
+    // convert html-entities to symbols (ex. &amp; to &)
+    textSelection = entities.decode(text);
+
+    startIndex = elementDom.attr(dataAttrSelector + "-start");
+    endIndex = elementDom.attr(dataAttrSelector + "-end");
+    leftText = textSelection.substring(0, startIndex).trim().replace(/\n/g, "");
+    rightText = textSelection.substring(endIndex).trim().replace(/\n/g, "");
+    textSelection = textSelection.substring(startIndex, endIndex).trim().replace(/\n/g, "");
+
+    Element.getArrayElementPathByTemplate(template.id, function(err, templateElementPath) {
+      if (err) {
+        console.log(err.message);
+      }
+
+      // if elementPath does not match
+      if (templateElementPath.length !== elementPath.length || !Element.matchElementPath(elementPath, templateElementPath)) {
+        return callback(new Error("not a duplicate template"));
+      }
+      // if elementPath matches, check text match
+      else {
+        // if an exact match is found, stop processing template
+        if (((template.left_text == null && leftText === '') || leftText.indexOf(template.left_text) === leftText.length - template.left_text.length) &&
+            ((template.right_text == null && rightText === '') || rightText.indexOf(template.right_text) === 0)) {
+          return callback();
+        } else {
+          return callback(new Error("not a duplicate template"));
+        }
+      }
+    });
+  });
+}
+
 /*
 * groupId: groupId contains a value if template is in a template group
 * groupIndex: each grouped attribute is grouped by an index to help in selecting the elements in the dom
 */
 function generateTemplate($, userId, attribute, elementPath, urlId, domainId, groupId, groupIndex, templateCallback) {
   var templateId;
-  var elementDom;
+  var dataAttrSelector = "data-tworeceipt-" + attribute;
+  if (groupId != null) {
+    dataAttrSelector += groupIndex;
+  }
+  var elementDom = $("[" + dataAttrSelector + "-start]");
   var elementId;
   var leftTextId;
   var rightTextId;
   var parentElementId;
-  var dataAttrSelector;
+
+  var textSelection;
   var startIndex;
   var endIndex;
+  var leftText;
+  var rightText;
+
+  var attributeId;
+  // grouped attribute
+  if (groupIndex != null) {
+    var groupedAttributes = Object.keys(global.attributes.groupedAttributes);
+    for (var i = 0; i < groupedAttributes.length; i++) {
+      if (groupedAttributes[i] !== "id" && global.attributes.groupedAttributes[groupedAttributes[i]].hasOwnProperty(attribute)) {
+        attributeId = global.attributes.groupedAttributes[groupedAttributes[i]][attribute].id;
+      }
+    }
+  } else if (global.attributes.individualAttributes.hasOwnProperty(attribute)) {
+    attributeId = global.attributes.individualAttributes[attribute].id;
+  }
+
+  if (attributeId == null) {
+    return templateCallback(new Error("Attribute " + attribute + " does not exist"));
+  }
 
   async.series([
-    // create template for receipt attribute
+    // prepare selected text in advance to db inserts
     function(callback) {
-      var attributeId;
-      // grouped attribute
-      if (groupIndex != null) {
-        var groupedAttributes = Object.keys(global.attributes.groupedAttributes);
-        for (var i = 0; i < groupedAttributes.length; i++) {
-          if (groupedAttributes[i] !== "id" && global.attributes.groupedAttributes[groupedAttributes[i]].hasOwnProperty(attribute)) {
-            attributeId = global.attributes.groupedAttributes[groupedAttributes[i]][attribute].id;
-          }
-        }
-      } else if (global.attributes.individualAttributes.hasOwnProperty(attribute)) {
-        attributeId = global.attributes.individualAttributes[attribute].id;
-      }
+      getElementText($, elementDom, function(text) {
+        // HARD-CODED &nbsp; REMOVAL (case: amazon.ca)
+        text = text.replace(/&nbsp;/g, "");
+        // convert html-entities to symbols (ex. &amp; to &)
+        textSelection = entities.decode(text);
 
-      if (attributeId != null) {
-        console.log("----------------TEMPLATE----------------------");
-        var newTemplate = new Template(null, attributeId, groupId, urlId, userId);
-        newTemplate.save(function(newTemplateId) {
-          if (newTemplateId != null) {
-            templateId = newTemplateId;
+        startIndex = elementDom.attr(dataAttrSelector + "-start");
+        endIndex = elementDom.attr(dataAttrSelector + "-end");
+        leftText = textSelection.substring(0, startIndex).trim().replace(/\n/g, "");
+        rightText = textSelection.substring(endIndex).trim().replace(/\n/g, "");
+        textSelection = textSelection.substring(startIndex, endIndex).trim().replace(/\n/g, "");
+        return callback();
+      });
+    },
+    // ensure existing template does not exist before db inserts
+    function(callback) {
+      // only individual attributes track duplicates here (grouped logic is in generateTemplateGroup)
+      if (groupIndex == null) {
+        Template.getTemplatesByElementPath(domainId, attributeId, function(err, result) {
+          var validTemplates = [];
+          async.eachSeries(result, function(row, eachCallback) {
+            Element.getArrayElementPathByTemplate(row.id, function(err, templateElementPath) {
+              if (err) {
+                console.log(err.message);
+              } else if (templateElementPath.length === elementPath.length && Element.matchElementPath(elementPath, templateElementPath)) {
+                validTemplates.push(row);
+              }
+              return eachCallback();
+            });
+          }, function(err) {
+            // if an exact match is found, stop processing template
+            for (var i = 0; i < validTemplates.length; i++) {
+              if ((validTemplates[i].left_text == null || leftText.indexOf(validTemplates[i].left_text) === leftText.length - validTemplates[i].left_text.length) &&
+                  (validTemplates[i].right_text == null || rightText.indexOf(validTemplates[i].right_text) === 0)) {
+                return callback(new Error("duplicate template"));
+              }
+            }
+            console.log("Selected templates with matching elementPath");
             return callback();
-          } else {
-            return callback(new Error("failed to create new template"));
-          }
+          });
         });
       } else {
-        return callback(new Error("Attribute " + attribute + " does not exist"));
+        return callback();
       }
+    },
+    // create template for receipt attribute
+    function(callback) {
+      console.log("----------------TEMPLATE----------------------");
+      var newTemplate = new Template(null, attributeId, groupId, urlId, userId);
+      newTemplate.save(function(newTemplateId) {
+        if (newTemplateId != null) {
+          templateId = newTemplateId;
+          return callback();
+        } else {
+          return callback(new Error("failed to create new template"));
+        }
+      });
     },
     // create template_domain for template & domain
     function(callback) {
@@ -222,13 +436,6 @@ function generateTemplate($, userId, attribute, elementPath, urlId, domainId, gr
     },
     // create elements
     function(callback) {
-      if (groupId != null) {
-        dataAttrSelector = "data-tworeceipt-" + attribute + groupIndex;
-      } else {
-        dataAttrSelector = "data-tworeceipt-" + attribute;
-      }
-      elementDom = $("[" + dataAttrSelector + "-start]");
-
       // create root element
       console.log("----------------ELEMENT PATH----------------------");
       saveElementPath($, templateId, elementPath, elementDom, function(err, rootElementId) {
@@ -242,27 +449,16 @@ function generateTemplate($, userId, attribute, elementPath, urlId, domainId, gr
     },
     // calculate selected text
     function(callback) {
-      getElementText($, elementDom, function(text) {
-        // HARD-CODED &nbsp; REMOVAL (case: amazon.ca)
-        text = text.replace(/&nbsp;/g, "");
-        // convert html-entities to symbols (ex. &amp; to &)
-        var textSelection = entities.decode(text);
-
-        startIndex = elementDom.attr(dataAttrSelector + "-start");
-        endIndex = elementDom.attr(dataAttrSelector + "-end");
-        textSelection = textSelection.substring(startIndex, endIndex).trim().replace(/\n/g, "");
-
-        console.log("----------------ROOT TEXT----------------------");
-        var rootText = new Text(null, templateId, elementId, null, "root", textSelection);
-        rootText.save(function(rootTextId) {
-          if (rootTextId != null) {
-            leftTextId = rootTextId;
-            rightTextId = rootTextId;
-            return callback();
-          } else {
-            return callback(new Error("failed to create text"));
-          }
-        });
+      console.log("----------------ROOT TEXT----------------------");
+      var rootText = new Text(null, templateId, elementId, null, "root", textSelection);
+      rootText.save(function(rootTextId) {
+        if (rootTextId != null) {
+          leftTextId = rootTextId;
+          rightTextId = rootTextId;
+          return callback();
+        } else {
+          return callback(new Error("failed to create text"));
+        }
       });
     },
     // find index of child nodes that contain start_index and end_index. add left/right text node for these nodes

@@ -8,10 +8,7 @@ var Access = require("./model/simple_table");
 
 async.series([
   function(callback) {
-    mysql.connect(function(connection) {
-      global.db = connection;
-      return callback();
-    });
+    mysql.connect(callback);
   },
   // load global.attributes with receipt attribute data (init database if data doesn't exist)
   // individual receipt attributes

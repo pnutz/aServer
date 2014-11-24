@@ -2,13 +2,13 @@ SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='TRADITIONAL,ALLOW_INVALID_DATES';
 
-CREATE SCHEMA IF NOT EXISTS `aserver` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci ;
-USE `aserver` ;
+CREATE SCHEMA IF NOT EXISTS `heroku_32915eb1e9538bf` DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci ;
+USE `heroku_32915eb1e9538bf` ;
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_domain`
+-- Table `heroku_32915eb1e9538bf`.`ser_domain`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_domain` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_domain` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `domain_name` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`))
@@ -16,9 +16,9 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_url`
+-- Table `heroku_32915eb1e9538bf`.`ser_url`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_url` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_url` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `url` VARCHAR(2000) NOT NULL,
   `domain_id` INT NOT NULL,
@@ -26,16 +26,16 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_url` (
   INDEX `domain_id_idx` (`domain_id` ASC),
   CONSTRAINT `fk_url_domain`
     FOREIGN KEY (`domain_id`)
-    REFERENCES `aserver`.`ser_domain` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_domain` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_receipt_attribute_group`
+-- Table `heroku_32915eb1e9538bf`.`ser_receipt_attribute_group`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_receipt_attribute_group` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_receipt_attribute_group` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `group_name` VARCHAR(45) NOT NULL,
   PRIMARY KEY (`id`))
@@ -43,9 +43,9 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_receipt_attribute`
+-- Table `heroku_32915eb1e9538bf`.`ser_receipt_attribute`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_receipt_attribute` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_receipt_attribute` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `attribute_name` VARCHAR(45) NOT NULL,
   `data_type` VARCHAR(45) NOT NULL,
@@ -54,16 +54,16 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_receipt_attribute` (
   INDEX `group_id_idx` (`group_id` ASC),
   CONSTRAINT `fk_receipt_attribute_group`
     FOREIGN KEY (`group_id`)
-    REFERENCES `aserver`.`ser_receipt_attribute_group` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_receipt_attribute_group` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_template_group`
+-- Table `heroku_32915eb1e9538bf`.`ser_template_group`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_group` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_template_group` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `group_id` INT NOT NULL,
   `domain_id` INT NOT NULL,
@@ -76,21 +76,21 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_group` (
   INDEX `fk_template_group_domain_idx` (`domain_id` ASC),
   CONSTRAINT `fk_template_attribute_group`
     FOREIGN KEY (`group_id`)
-    REFERENCES `aserver`.`ser_receipt_attribute_group` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_receipt_attribute_group` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_template_group_domain`
     FOREIGN KEY (`domain_id`)
-    REFERENCES `aserver`.`ser_domain` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_domain` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_template`
+-- Table `heroku_32915eb1e9538bf`.`ser_template`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_template` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `attribute_id` INT NOT NULL,
   `template_group_id` INT NULL,
@@ -103,26 +103,26 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_template` (
   INDEX `fk_template_group_idx` (`template_group_id` ASC),
   CONSTRAINT `fk_template_receipt_attribute`
     FOREIGN KEY (`attribute_id`)
-    REFERENCES `aserver`.`ser_receipt_attribute` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_receipt_attribute` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_template_url`
     FOREIGN KEY (`url_id`)
-    REFERENCES `aserver`.`ser_url` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_url` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_template_group`
     FOREIGN KEY (`template_group_id`)
-    REFERENCES `aserver`.`ser_template_group` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_template_group` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_template_domain`
+-- Table `heroku_32915eb1e9538bf`.`ser_template_domain`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_domain` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_template_domain` (
   `template_id` INT NOT NULL,
   `domain_id` INT NOT NULL,
   `probability_success` DECIMAL(5,4) NOT NULL,
@@ -133,21 +133,21 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_template_domain` (
   INDEX `fk_domain_idx` (`domain_id` ASC),
   CONSTRAINT `fk_template`
     FOREIGN KEY (`template_id`)
-    REFERENCES `aserver`.`ser_template` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_template` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_domain`
     FOREIGN KEY (`domain_id`)
-    REFERENCES `aserver`.`ser_domain` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_domain` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_html_tag`
+-- Table `heroku_32915eb1e9538bf`.`ser_html_tag`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_html_tag` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_html_tag` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `tag_name` VARCHAR(20) NOT NULL,
   PRIMARY KEY (`id`))
@@ -155,9 +155,9 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_element`
+-- Table `heroku_32915eb1e9538bf`.`ser_element`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_element` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `template_id` INT NOT NULL,
   `index` INT NOT NULL,
@@ -168,21 +168,21 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element` (
   INDEX `fk_element_tag_idx` (`tag_id` ASC),
   CONSTRAINT `fk_element_template`
     FOREIGN KEY (`template_id`)
-    REFERENCES `aserver`.`ser_template` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_template` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_element_tag`
     FOREIGN KEY (`tag_id`)
-    REFERENCES `aserver`.`ser_html_tag` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_html_tag` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_element_attribute_type`
+-- Table `heroku_32915eb1e9538bf`.`ser_element_attribute_type`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_element_attribute_type` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_element_attribute_type` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `attribute_type` VARCHAR(45) NOT NULL,
   PRIMARY KEY (`id`))
@@ -190,9 +190,9 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_element_attribute_value`
+-- Table `heroku_32915eb1e9538bf`.`ser_element_attribute_value`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_element_attribute_value` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_element_attribute_value` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `attribute_value` VARCHAR(500) NOT NULL,
   PRIMARY KEY (`id`))
@@ -200,9 +200,9 @@ ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_element_attribute`
+-- Table `heroku_32915eb1e9538bf`.`ser_element_attribute`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_element_attribute` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_element_attribute` (
   `element_id` INT NOT NULL,
   `attribute_type_id` INT NOT NULL,
   `attribute_value_id` INT NOT NULL,
@@ -211,26 +211,26 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_element_attribute` (
   INDEX `fk_attribute_value_idx` (`attribute_value_id` ASC),
   CONSTRAINT `fk_element`
     FOREIGN KEY (`element_id`)
-    REFERENCES `aserver`.`ser_element` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_element` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_attribute_type`
     FOREIGN KEY (`attribute_type_id`)
-    REFERENCES `aserver`.`ser_element_attribute_type` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_element_attribute_type` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_attribute_value`
     FOREIGN KEY (`attribute_value_id`)
-    REFERENCES `aserver`.`ser_element_attribute_value` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_element_attribute_value` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_text`
+-- Table `heroku_32915eb1e9538bf`.`ser_text`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_text` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_text` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `template_id` INT NOT NULL,
   `element_id` INT NULL,
@@ -243,26 +243,26 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_text` (
   INDEX `fk_text_template_idx` (`template_id` ASC),
   CONSTRAINT `fk_text`
     FOREIGN KEY (`text_id`)
-    REFERENCES `aserver`.`ser_text` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_text` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_text_element`
     FOREIGN KEY (`element_id`)
-    REFERENCES `aserver`.`ser_element` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_element` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_text_template`
     FOREIGN KEY (`template_id`)
-    REFERENCES `aserver`.`ser_template` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_template` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;
 
 
 -- -----------------------------------------------------
--- Table `aserver`.`ser_attempt`
+-- Table `heroku_32915eb1e9538bf`.`ser_attempt`
 -- -----------------------------------------------------
-CREATE TABLE IF NOT EXISTS `aserver`.`ser_attempt` (
+CREATE TABLE IF NOT EXISTS `heroku_32915eb1e9538bf`.`ser_attempt` (
   `id` INT NOT NULL AUTO_INCREMENT,
   `template_id` INT NOT NULL,
   `url_id` INT NOT NULL,
@@ -275,12 +275,12 @@ CREATE TABLE IF NOT EXISTS `aserver`.`ser_attempt` (
   INDEX `fk_attempt_url_idx` (`url_id` ASC),
   CONSTRAINT `fk_attempt_template`
     FOREIGN KEY (`template_id`)
-    REFERENCES `aserver`.`ser_template` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_template` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION,
   CONSTRAINT `fk_attempt_url`
     FOREIGN KEY (`url_id`)
-    REFERENCES `aserver`.`ser_url` (`id`)
+    REFERENCES `heroku_32915eb1e9538bf`.`ser_url` (`id`)
     ON DELETE NO ACTION
     ON UPDATE NO ACTION)
 ENGINE = InnoDB;

@@ -298,7 +298,7 @@ function findDefaultValue($, attribute, text, domain, textNodes) {
   case "itemtype":
     result = findDefaultItemName($, text, textNodes);
     break;
-  case "cost":
+  case "item_cost":
     result = findDefaultItemCost($, text, textNodes);
     break;
   case "quantity":
@@ -1251,7 +1251,7 @@ function calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath
       valueTemplate.end = valueTemplate.start + value.length;
     }
 
-    return { value: { tax: tax, price: value }, elementPath: { tax: taxElement[0], price: valueElement[0] }, template: { tax: taxTemplate, price: valueTemplate} };
+    return { value: { taxtype: tax, tax_cost: value }, elementPath: { taxtype: taxElement[0], tax_cost: valueElement[0] }, template: { taxtype: taxTemplate, tax_cost: valueTemplate} };
   } else {
     return null;
   }

@@ -38,7 +38,7 @@ module.exports.groupData = [
         datatype: "string"
       },
       {
-        attribute: "cost",
+        attribute: "item_cost",
         datatype: "decimal"
       },
       {
@@ -55,11 +55,11 @@ module.exports.groupData = [
         datatype: "null"
       },
       {
-        attribute: "tax",
+        attribute: "taxtype",
         datatype: "string"
       },
       {
-        attribute: "price",
+        attribute: "tax_cost",
         datatype: "decimal"
       }
     ]

@@ -12,7 +12,7 @@ var probability = require("./probability");
 // TODO: Change origin to contain chrome extension full url (once ID is set)
 var originString = "chrome-extension://";
 var requestCount = 0;
-//var ipAddr = "127.0.0.1";
+var ipAddr = "127.0.0.1";
 var port = (process.env.PORT || "8888");
 
 var server;
@@ -112,7 +112,7 @@ function start()
   });
 
   // Start listening
-  server.listen(port, function() {
+  server.listen(port, /*ipAddr,*/ function() {
     console.log("%s listening at %s", server.name, server.url);
   });
   console.log("Server Started");

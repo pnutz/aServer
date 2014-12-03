@@ -3,6 +3,9 @@ db_config = {
   host: "us-cdbr-iron-east-01.cleardb.net",
   user: "b172f42d78e5bb",
   password: "043a4171",
+  /*host: "localhost",
+  user: "db_admin",
+  password: "templeton",*/
   database: "heroku_ab38145fd331c3a"
 };
 

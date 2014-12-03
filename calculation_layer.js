@@ -1069,9 +1069,9 @@ function findDefaultTaxes($, text, textNodes) {
             }
           }
 
-          tempResult.value = { tax: tax, price: value };
-          tempResult.elementPath = { tax: findElementPath($, taxElement[0]), price: findElementPath($, valueElement[0]) };
-          tempResult.template = { tax: taxTemplate, price: valueTemplate };
+          tempResult.value = { taxtype: tax, tax_cost: value };
+          tempResult.elementPath = { taxtype: findElementPath($, taxElement[0]), tax_cost: findElementPath($, valueElement[0]) };
+          tempResult.template = { taxtype: taxTemplate, tax_cost: valueTemplate };
           break;
         }
       }
@@ -1089,10 +1089,10 @@ function findDefaultTaxes($, text, textNodes) {
 
         var taxResult = calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath, valueTextNodeOrder);
         // only add if result doesn't contain total
-        if (taxResult != null && taxResult.value.tax.toLowerCase().indexOf("total") === -1) {
+        if (taxResult != null && taxResult.value.taxtype.toLowerCase().indexOf("total") === -1) {
           result.value[index] = taxResult.value;
-          taxResult.elementPath.tax = findElementPath($, taxResult.elementPath.tax);
-          taxResult.elementPath.price = findElementPath($, taxResult.elementPath.price);
+          taxResult.elementPath.taxtype = findElementPath($, taxResult.elementPath.taxtype);
+          taxResult.elementPath.tax_cost = findElementPath($, taxResult.elementPath.tax_cost);
           result.elementPath[index] = taxResult.elementPath;
           result.template[index] = taxResult.template;
           index++;
@@ -1111,10 +1111,10 @@ function findDefaultTaxes($, text, textNodes) {
 
         var taxResult = calculateTaxRow(row, taxElementPath, taxTextNodeOrder, valueElementPath, valueTextNodeOrder);
         // only add if result doesn't contain total
-        if (taxResult != null && taxResult.value.tax.toLowerCase().indexOf("total") === -1) {
+        if (taxResult != null && taxResult.value.taxtype.toLowerCase().indexOf("total") === -1) {
           result.value[index] = taxResult.value;
-          taxResult.elementPath.tax = findElementPath($, taxResult.elementPath.tax);
-          taxResult.elementPath.price = findElementPath($, taxResult.elementPath.price);
+          taxResult.elementPath.taxtype = findElementPath($, taxResult.elementPath.taxtype);
+          taxResult.elementPath.tax_cost = findElementPath($, taxResult.elementPath.tax_cost);
           result.elementPath[index] = taxResult.elementPath;
           result.template[index] = taxResult.template;
           index++;

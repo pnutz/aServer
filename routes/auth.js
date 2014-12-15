@@ -4,7 +4,7 @@ DEBUG_FLAG = true;
 
 function authorizeRequest(token, userID, email, callback) {
   var options = {
-    host: "https://tranquil-sierra-2576.herokuapp.com",// "localhost",
+    host: "https://tworeceipt.herokuapp.com",// "localhost",
     //port: "3000",
     // replace path with authentication method
     path: "/currencies.json?email=" + email + "&token=" + token
